@@ -1,0 +1,125 @@
+<html>
+	<head>
+		<script language="javascript">
+			//Phantomjs doesn't support bind...
+			if (!Function.prototype.bind) {
+  Function.prototype.bind = function(oThis) {
+    if (typeof this !== 'function') {
+      // closest thing possible to the ECMAScript 5
+      // internal IsCallable function
+      throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
+    }
+
+    var aArgs   = Array.prototype.slice.call(arguments, 1),
+        fToBind = this,
+        fNOP    = function() {},
+        fBound  = function() {
+          return fToBind.apply(this instanceof fNOP
+                 ? this
+                 : oThis,
+                 aArgs.concat(Array.prototype.slice.call(arguments)));
+        };
+
+    fNOP.prototype = this.prototype;
+    fBound.prototype = new fNOP();
+
+    return fBound;
+  };
+			}
+		</script>
+		<script language="javascript" src="../../../dist/pdfen-browser.js"></script>
+	</head>
+	<body>
+
+	<form method="POST" enctype="multipart/form-data">
+		<input type="file" name="file" id="file">
+	</form>
+		<script language="javascript">
+			
+			var progress = function (line){
+				console.log(line);
+			}
+			
+			var completed = function (result){
+			  console.log("--------------------------------");
+			  console.log("PDF generated!");
+			  console.log("URL is:");
+			  console.log(result.url);
+			  console.log("PHANTOM_STOP");
+			}
+			
+			function handleFileSelect(evt){
+				var interval;
+
+				var progress = function (line){
+					console.log(line);
+				}
+				
+				var upload_progress = function(){
+				  var dashes = 0;
+				  return function(progress){
+				    var ratio = progress.send/progress.total;
+				    var line = "";
+				    for(var i = 0; i < 100; i++){
+				      line += "\b";
+				    }
+				    line += "[";
+				    for(var i = 0; i < 25; i++){
+				      if(i <= ratio * 24){
+				        line += "-";
+				      } else if (i-1 < ratio*24){
+				        line += ">";
+				      } else {
+				        line += " ";
+				      }
+				    }
+				    line += "]";
+				    if(ratio === 1){
+				      line += " (average: " + Math.floor(progress.average_speed / 1024) + " kB/s)";
+				    } else {
+				      line += " (" + Math.floor(progress.current_speed / 1024) + " kB/s)";
+				    }
+				    console.log(line);
+				  };
+				}();
+				
+				var completed = function (result){
+				  clearInterval(interval);
+				  console.log("--------------------------------");
+				  console.log("PDF generated!");
+				  console.log("URL is:");
+				  console.log(result.url);
+				  console.log("PHANTOM_STOP");
+				}
+				
+				console.log("-------------------------------------------------------------------------------------------");
+				console.log("| Testcase:                                                                               |");
+				console.log("-------------------------------------------------------------------------------------------");
+				console.log("| Converting a large (40MB) docx file with images into a PDF file in a html application . |");
+				console.log("-------------------------------------------------------------------------------------------");
+				console.log("");
+
+				var session = new pdfen.Session();
+				session.login("kay@juistdit.nl", "Kay80000", {success:
+					function (){
+						var file_element = document.getElementById('file');
+						var file = new session.File;
+						file.title = 'Large Image Document';
+						file.extension = 'docx';
+						file.content = file_element.files[0]
+						file.create({success : function(){
+    						console.log("File uploaded. File created: id="+file.id)
+    						console.log("Generating pdf...");
+    						console.log("--------------------------------");
+    						console.log("Progress:");
+    						console.log("--------------------------------");
+							session.generatePdf({}, {progress: progress, success: completed});
+							}, progress : upload_progress});
+						}, progress : function(){}});
+			}
+			
+			document.getElementById('file').addEventListener('change', handleFileSelect, false);
+			console.log("FileHandler registered.");
+		</script>
+	</body>
+</html>

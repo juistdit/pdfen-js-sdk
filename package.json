@@ -1,0 +1,12 @@
+{
+  "name": "pdfen-sdk",
+  "version": "0.0.1",
+  "author": "Kay Lukas",
+  "description": "Makes it possible to communicate with the PDFen api.",
+  "dependencies": {
+    "https": "latest"
+  },
+  "devDependencies": {
+    "browserify": "latest"
+  }
+}

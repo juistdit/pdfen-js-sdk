@@ -1,0 +1,76 @@
+<html>
+	<head>
+		<script language="javascript">
+			//Phantomjs doesn't support bind...
+			if (!Function.prototype.bind) {
+  Function.prototype.bind = function(oThis) {
+    if (typeof this !== 'function') {
+      // closest thing possible to the ECMAScript 5
+      // internal IsCallable function
+      throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
+    }
+
+    var aArgs   = Array.prototype.slice.call(arguments, 1),
+        fToBind = this,
+        fNOP    = function() {},
+        fBound  = function() {
+          return fToBind.apply(this instanceof fNOP
+                 ? this
+                 : oThis,
+                 aArgs.concat(Array.prototype.slice.call(arguments)));
+        };
+
+    fNOP.prototype = this.prototype;
+    fBound.prototype = new fNOP();
+
+    return fBound;
+  };
+			}
+		</script>
+		<script language="javascript" src="../../../dist/pdfen-browser.js"></script>
+	</head>
+	<body>
+
+	<form method="POST" enctype="multipart/form-data">
+		<input type="file" name="file" id="file">
+	</form>
+		<script language="javascript">
+			
+			var progress = function (line){
+				console.log(line);
+			}
+			
+			var completed = function (result){
+			  console.log("--------------------------------");
+			  console.log("PDF generated!");
+			  console.log("URL is:");
+			  console.log(result.url);
+			  console.log("PHANTOM_STOP");
+			}
+			
+			function handleFileSelect(evt){
+				console.log("Testing conversion of a 90 page docx in a html application.")
+				var session = new pdfen.Session();
+				session.login("kay@juistdit.nl", "Kay80000", {success:
+					function (){
+						var file_element = document.getElementById('file');
+						var file = new session.File;
+						file.title = 'My document';
+						file.extension = 'docx';
+						file.content = file_element.files[0]
+						file.create({success : function(){
+    						console.log("File uploaded. File created: id="+file.id)
+    						console.log("Generating pdf...");
+    						console.log("--------------------------------");
+    						console.log("Progress:");
+    						console.log("--------------------------------");
+							session.generatePdf({}, {progress: progress, success: completed});
+							}, progress : function(){}});
+						}, progress : function(){}});
+			}
+			
+			document.getElementById('file').addEventListener('change', handleFileSelect, false);
+			console.log("FileHandler registered.");
+		</script>
+	</body>
+</html>
