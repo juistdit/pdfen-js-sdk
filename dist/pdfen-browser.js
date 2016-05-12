@@ -425,7 +425,7 @@ module.exports = function (settings){
 
 			
 },{}],4:[function(require,module,exports){
-module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
+module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings, id){
 	files.push(this);
     if (typeof id === 'undefined') { 
 		id = null; 
@@ -439,12 +439,13 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
     
     var upload_handle = null;
     
-    this.__pushServerUpdate = function(token, title_in, extension_in){
+    this.__pushServerUpdate = function(token, title_in, extension_in, warnings_in){
         if(token !== secretToken){
             throw "Not allowed";
         }
         title = title_in;
         extension = extension_in;
+        warnings = warnings_in;
         
         triggerOnChange();
     };
@@ -466,13 +467,24 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
         params.file_settings.title = title;
         
         var upload_cb = function(success, data){
-            upload_handle = null;
-            if(success && 'success' in callbacks) {
-                uploadProgress = null;
-                callbacks.success();
-            } else {
-                callbacks.error(data);
+            if(upload_handle !== null){
+                pdfenApi.stopRequest(upload_handle);
+                upload_handle = null;
             }
+            if(success) {
+                uploadProgress = null;
+                if('warnings' in data){
+                    warnings = data['warnings'];
+                }
+                if('success' in callbacks){
+                    callbacks.success();
+                }
+            } else {
+                if('error' in callbacks) {
+                    callbacks.error(data)
+                }
+            }
+            //todo error
         };
         
         var uploadFile = function(){
@@ -526,7 +538,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
             properties_changed = false;
         };
         
-        var upload_cb = function(success){
+        var upload_cb = function(success, data){
             if(upload_handle !== null){
                 pdfenApi.stopRequest(upload_handle);
                 upload_handle = null;
@@ -534,14 +546,21 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
             if(success) {
                 updateChangedParams();
                 uploadProgress = null;
+                if('warnings' in data){
+                    warnings = data['warnings'];
+                }
                 if('success' in callbacks){
                     callbacks.success();
+                }
+            } else {
+                if('error' in callbacks) {
+                    callbacks.error(data);
                 }
             }
             //todo error
         };
         
-        var uploadFile = function(){
+        var uploadFile = function() {
             upload_handle = pdfenApi.PUT('/sessions/' + pdfenSession.id + '/files/' + id, content, upload_cb, 
                 function(report){
                     uploadProgress = report;
@@ -616,13 +635,16 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, id){
             "get": function () { return title; },
             "set": function(val) { title = val; properties_changed = true;}
         },
+        "warnings" : { 
+            "get" : function() { return warnings.slice();}
+        },
         "content" : {
             "get": function () { throw "Not supported."; },
             "set": function(val) {content = val; content_changed = true;}
         },
         "extension" : {
             "get": function () { return extension; },
-            "set": function(val) { extension = val; properties_changed = true;}
+            "set": function(val) { extension = val.toLowerCase(); properties_changed = true;}
         },
         "onChange" : {
             "get" : function () { 
@@ -717,7 +739,7 @@ module.exports = function (pdfenApi){
 	//A fix for browsers that do not support bind
 	var emptyObject = {};
 	var secretToken = Math.random();
-	this.File = PdfenFile.bind(emptyObject, pdfenApi, this, secretToken, files);
+	this.File = PdfenFile.bind(emptyObject, pdfenApi, this, secretToken, files, []);
 	
 	
 	//log in by loading an existing session
@@ -832,9 +854,12 @@ module.exports = function (pdfenApi){
 					if(files[j].id === raw_files[i].file_id){
 						file_exists = true;
 						//update
+						var warnings_is_same = (files[j].warnings.length == raw_files[i].warnings.length) && files[j].warnings.every(function(element, index) {
+    						return element === raw_files[i].warnings[index]; 
+						});
 						if(files[j].title !== raw_files[i].title ||
-							files[j].extension !== raw_files[i].extension){
-							files[j].__pushServerUpdate(secretToken, raw_files[i].title, raw_files[i].extension);
+							files[j].extension !== raw_files[i].extension || !warnings_is_same){
+							files[j].__pushServerUpdate(secretToken, raw_files[i].title, raw_files[i].extension, raw_files[i].warnings);
 						}
 					}
 				}
@@ -842,7 +867,7 @@ module.exports = function (pdfenApi){
                 //completely uploaded.
                 //This hides the two step upload of the API from the user
                if(!file_exists && !raw_files[i].partial){
-					var f = new PdfenFile(pdfenApi, self, secretToken, files, raw_files[i].file_id);
+					var f = new PdfenFile(pdfenApi, self, secretToken, files, raw_files[i].warnings, raw_files[i].file_id);
 					f.title = raw_files[i].title;
 					f.extension = raw_files[i].extension;
 				}
