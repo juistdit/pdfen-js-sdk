@@ -3,9 +3,41 @@
 Uint8Array.prototype.toArrayBuffer = function () {return this.buffer;};
 window.pdfen = require('./pdfen.js');
 },{"./pdfen.js":2}],2:[function(require,module,exports){
+if (!Object.assign) {
+  Object.defineProperty(Object, 'assign', {
+    enumerable: false,
+    configurable: true,
+    writable: true,
+    value: function(target) {
+      'use strict';
+      if (target === undefined || target === null) {
+        throw new TypeError('Cannot convert first argument to object');
+      }
+
+      var to = Object(target);
+      for (var i = 1; i < arguments.length; i++) {
+        var nextSource = arguments[i];
+        if (nextSource === undefined || nextSource === null) {
+          continue;
+        }
+        nextSource = Object(nextSource);
+
+        var keysArray = Object.keys(nextSource);
+        for (var nextIndex = 0, len = keysArray.length; nextIndex < len; nextIndex++) {
+          var nextKey = keysArray[nextIndex];
+          var desc = Object.getOwnPropertyDescriptor(nextSource, nextKey);
+          if (desc !== undefined && desc.enumerable) {
+            to[nextKey] = nextSource[nextKey];
+          }
+        }
+      }
+      return to;
+    }
+  });
+}
+
 var https = require( "https" );
 
-var pdfen = module.exports;
 var settings = {
 	api_host : 'www.pdfen.com',
 	api_root_path : "/api/v1",
@@ -14,7 +46,6 @@ var settings = {
 }
 
 var pdfenSession = require('./pdfenSession.js');
-
 
 var PUTfile = function (path, content, callback, progress, language){
 		var content_length = content.size;
@@ -170,6 +201,16 @@ var PUTpath = function (path, content, callback, progress, language){
 		});
 		return result;
 	}
+	
+	
+var downloadBrowser = function () {
+	
+}
+	
+var downloadPath = function () {
+	
+}
+
 
 var pdfenApi = {
 	POST : function(path, data, callback, language){
@@ -183,7 +224,8 @@ var pdfenApi = {
 				'Content-Type' : 'application/json',
 				'Content-Length' : json.length,
 				'accept-language' : language
-				}
+				},
+			followRedirect: false
 		};
 
 		var registerResponseHandlers = function(response) {
@@ -219,7 +261,8 @@ var pdfenApi = {
 				'Content-Type' : 'application/json',
 				'Content-Length' : json.length,
 				'accept-language' : language
-				}
+				},
+			followRedirect: false
 		};
 
 		var registerResponseHandlers = function(response) {
@@ -253,7 +296,8 @@ var pdfenApi = {
 			method: 'GET',
 			headers: {
 				'accept-language' : language
-			}
+			},
+			followRedirect: false
 		};
 
 		var registerResponseHandlers = function(response) {
@@ -287,7 +331,8 @@ var pdfenApi = {
 			method: 'DELETE',
 			headers: {
 				'accept-language' : language
-			}
+			},
+			followRedirect: false
 		};
 
 		var registerResponseHandlers = function(response) {
@@ -323,7 +368,8 @@ var pdfenApi = {
 				'Content-Type' : 'application/json',
 				'Content-Length' : json.length,
 				'accept-language' : language
-				}
+				},
+			followRedirect: false
 		};
 
 		var registerResponseHandlers = function(response) {
@@ -357,6 +403,80 @@ var pdfenApi = {
 		}
 	},
 	
+	HEAD : function(path, callback, language){
+		var head_options = {
+			hostname: settings.api_host,
+			path: settings.api_root_path + path,
+			protocol: 'https:',//Seems to be required for browserify
+			method: 'HEAD',
+			headers: {
+				'accept-language' : language
+			},
+			followRedirect: false
+		};
+	
+		var registerResponseHandlers = function(response) {
+			var data = '';
+	
+			response.on('data', function (chunk) {
+				data += chunk;
+			});
+				
+			response.on('end', function () {
+				if(data === ''){
+					callback(response.headers, response.statusCode);
+				} else {
+					callback(response.headers, response.statusCode);
+				}
+			});
+		};
+	
+		var get_req = https.request(head_options, registerResponseHandlers);
+		get_req.on('error', function(msg){
+			callback(msg, -1);
+		});
+		get_req.end();
+	},
+	
+	download : function(path, target, callback, language){
+		path = 'https://'  + settings.api_host + settings.api_root_path + path;
+		if (typeof window !== 'undefined') {
+			//Creating new link node.
+			var link = document.createElement('a');
+			link.href = path;
+
+			if (link.download !== undefined){
+				//Set HTML5 download attribute. This will prevent file from opening if supported.
+				var fileName = path.substring(target.lastIndexOf('/') + 1, path.length);
+				link.download = fileName;
+			}
+
+			//Dispatching click event.
+			if (document.createEvent) {
+				var e = document.createEvent('MouseEvents');
+				e.initEvent('click' ,true ,true);
+				link.dispatchEvent(e);
+				return true;
+			}
+		} else {
+			var fs = require('fs');
+			var file = fs.createWriteStream(target);
+			var request = https.get(path, function(response) {
+  				response.pipe(file);
+			});
+		}
+	},
+	
+	stripUrl : function (url){
+		var i = url.indexOf(settings.api_root_path);
+		if(i === -1){
+			return url;
+		} else{
+			i = i + settings.api_root_path.length;
+			return url.substr(i);
+		}
+	},
+	
 	stopRequest : function (request){
 		if(request.request_type === "node"){
 			if(request_buffer[request.request] === null || request_buffer[request.request] === false){
@@ -376,9 +496,9 @@ var pdfenApi = {
  //use emptyObject instead of null, to support polyfill bind
  //A fix for browsers that do not support bind
  var emptyObject = {};
- pdfen.Session = pdfenSession.bind(emptyObject, pdfenApi);
+ module.exports.Session = pdfenSession.bind(emptyObject, pdfenApi);
 
-},{"./pdfenSession.js":5,"fs":7,"https":14}],3:[function(require,module,exports){
+},{"./pdfenSession.js":7,"fs":12,"https":19}],3:[function(require,module,exports){
 
 module.exports = function (settings){
 	var last_interval = settings.min_polling_interval;
@@ -473,7 +593,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             }
             if(success) {
                 uploadProgress = null;
-                if('warnings' in data){
+                if(data !== null && 'warnings' in data){
                     warnings = data['warnings'];
                 }
                 if('success' in callbacks){
@@ -668,11 +788,334 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
     });
 }
 },{}],5:[function(require,module,exports){
+module.exports = function (pdfenApi, pdfenSession, url){
+	
+	this.download = function (callbacks, target){
+		var rUrl = pdfenApi.stripUrl(url);
+		if(typeof target == "undefined"){
+			target = null;
+		}
+		if(typeof callbacks == "undefined"){
+			callbacks = {error: pdfenSession.onError, success : function(){}};
+		}
+		if(typeof callbacks.error == "undefined"){
+			callbacks.error = pdfenSession.onError;
+		}
+		if(typeof callbacks.success == "undefined"){
+			callbacks.success = function() {};
+		}
+		var head_cb = function (data, statusCode){
+			if(!(statusCode >= 200 && statusCode < 300)){
+          		//error
+				var error_cb = function(data, statusCode){
+					callbacks.error(data['message']);
+				}
+				pdfenApi.GET(rUrl, error_cb, pdfenSession.language);
+            	return;
+            } else {
+				var target = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/g.exec(data['content-disposition'])[1];
+				pdfenApi.download(rUrl, target, function() { callbacks.success}, pdfenSession.language);
+			}
+		}
+		pdfenApi.HEAD(rUrl, head_cb, pdfenSession.language);
+	}
+	
+	Object.defineProperties(this, {
+        "url": {
+             "get": function(){return url;}
+        }
+    });
+}
+},{}],6:[function(require,module,exports){
+module.exports = function (pdfenApi, pdfenSession, template_key){
+	
+	var options = {};
+	var changed_options = [];
+	var template_id = null;
+	var disable_pull = false;
+	var onChange = function(){
+		
+	}
+	var template = null;
+	
+	var triggerOnChange = function () {
+		onChange();
+	}
+	
+	var getCurrentTemplate = function(){
+		if(template !== null && options['template_id'] === template.id){
+			return template;
+		}
+		return null;
+	}
+	
+	this.loadTemplate = function(val, callbacks){
+		if((typeof val) !== "string"){
+			val = val.id;
+		}
+		template_id = val;
+		template = null;
+		disable_pull = true;
+		
+		if(typeof callbacks == "undefined"){
+			callbacks = {error: pdfenSession.onError, success : function(){}};
+		}
+		if(typeof callbacks.error == "undefined"){
+			callbacks.error = pdfenSession.onError;
+		}
+		if(typeof callbacks.success == "undefined"){
+			callbacks.success = function() {};
+		}
+		var retry = false;
+		var patch_cb = function (data, statusCode) {
+			if(!(statusCode >= 200 && statusCode < 300)){
+				//error
+				callbacks.error(data);
+				return;
+			}
+			
+			var success_cnt = 0;
+			var template_desc = pdfenSession.getTemplateDescriptionById(template_id);
+			if(template_desc === null && !retry){
+				retry = true;
+				pdfenSession.update({success: function(){patch_cb(data, statusCode);}});
+				return;
+			} else if(template_desc === null){
+				callbacks.error("The template did not exist!");
+			}
+			
+			disable_pull = false;
+			options['template_id'] = template_id;
+			//We force fetch template our self, because this allows 2 concurrent request instead of 2 sequential requests.
+			template_desc.fetchTemplate(function(in_template, error){
+				if(in_template === null){
+					callbacks.error(error);
+					return;
+				}
+				
+				if(options['template_id'] !== in_template.id){
+					template = in_template;
+					template_id = data[name];
+				}
+				success_cnt += 1;
+				if(success_cnt === 2){
+					triggerOnChange();
+					callbacks.success();
+				}
+			});
+			var cb = {};
+			cb.success = function(){
+				success_cnt += 1;
+				if(success_cnt === 2){
+					triggerOnChange();
+					callbacks.success();
+				}
+			}
+			cb.error = callbacks.error;
+			pull(cb, true);
+		};
+		var params = { template_id : template_id};
+		pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
+	}
+	
+	this.getOption = function(name){
+		var temp = getCurrentTemplate();
+		if(temp === null || !temp.isSelected){
+			throw "This object hasn't synced properly with the server";
+		}
+		if(!temp.hasField(name)){
+			throw "No field '" + name + "' exists using the current template.";
+		}
+		return options[name];
+	}
+	
+	this.setOption = function (name, val){
+		var temp = getCurrentTemplate();
+		if(temp === null || !temp.isSelected){
+			throw "This object hasn't synced properly with the server";
+		}
+		
+		var fields = temp.fields;
+		if(!temp.hasField(name)){
+			throw "The field '" + name + "' does not exist";
+		}
+		if(!temp.getFieldById(name).isCorrectValue(val)){
+			var type = temp.getFieldById(name).type;
+			throw "The value '" + val + "' was not in the format corresponding to " + type;
+		}
+		
+		options[name] = val;
+		changed_options.push(name);
+	}
+	
+	var pull = function(callbacks, disable_changed){
+		
+		if(disable_pull){
+			return;
+		}
+		
+		if(typeof callbacks == "undefined"){
+			callbacks = {error: pdfenSession.onError, success : function(){}};
+		}
+		if(typeof callbacks.error == "undefined"){
+			callbacks.error = pdfenSession.onError;
+		}
+		if(typeof callbacks.success == "undefined"){
+			callbacks.success = function() {};
+		}
+		
+		var template_success = false;
+		var options_success = false;
+		var retry = false;
+		var get_cb = function (data, statusCode){
+			var changed;
+			var reloading_template = false;
+			if(!(statusCode >= 200 && statusCode < 300)){
+          		//error
+            	callbacks.error(data);
+            	return;
+            }
+			var options_cpy = Object.assign({}, options)
+			for (var name in data) {
+    			if (!data.hasOwnProperty(name)) {
+       		 		continue;
+    			}
+				if (changed_options.indexOf(name) === -1 && (
+					!options_cpy.hasOwnProperty(name) || options_cpy[name] !== data[name])) {
+					changed = true;
+					if(name === 'template_id'){
+						template = null;
+						var template_desc = pdfenSession.getTemplateDescriptionById(data[name]);
+						if(template_desc === null && !retry){
+							retry = true;
+							pdfenSession.update({success: function(){get_cb(data, statusCode);}, error: callbacks.error});
+							return;
+						} else if(template_desc === null){
+							callbacks.error("The template did not exist!");
+						}
+						reloading_template = true;
+						template_desc.fetchTemplate(function(in_template, error){
+							if(in_template === null){
+								callbacks.error(error);
+								return;
+							}
+							
+							if(options['template_id'] !== in_template.id){
+								template = in_template;
+								template_id = data['template_id'];
+								options['template_id'] = data['template_id'];
+								if (changed && !disable_changed) {
+									triggerOnChange();
+								}
+							}
+							options_success = true;
+							if(template_success){
+								callbacks.success();
+							}
+						});
+					} else {						
+						options_cpy[name] = data[name];
+					}
+				}
+			}
+			for (var name in options_cpy) {
+				if (!options_cpy.hasOwnProperty(name)) {
+					continue;
+				}
+				if (!data.hasOwnProperty(name)){
+					changed = true;
+					//remove it from options
+					delete options_cpy[name];
+				}
+			}
+			options = options_cpy;
+			
+			if(!reloading_template){
+				if (changed && !disable_changed) {
+					triggerOnChange();
+				}
+				options_success = true;
+				if(template_success){
+					callbacks.success();
+				}
+			}
+		}
+		var temp_cb = { };
+		temp_cb.error = callbacks.error;
+		temp_cb.success = function(){
+			template_success = true;
+			if(options_success){
+				callbacks.success();
+			}
+		}
+		//if(template !== null){
+		//	template.update(temp_cb);
+		//}
+		
+		pdfenApi.GET('/sessions/' + pdfenSession.id + '/options', get_cb, pdfenSession.language);
+	}
+	
+	
+	this.pull = function(callbacks){
+		pull(callbacks, false);
+	}
+	
+	this.update = function (callbacks){
+		if(typeof callbacks == "undefined"){
+			callbacks = {error: pdfenSession.onError, success : function(){}};
+		}
+		if(typeof callbacks.error == "undefined"){
+			callbacks.error = pdfenSession.onError;
+		}
+		if(typeof callbacks.success == "undefined"){
+			callbacks.success = function() {};
+		}
+		
+		if (changed_options.length === 0) {
+			pull(callbacks, false);
+		} else {
+			var patch_cb = function (data, statusCode) {
+            	if(!(statusCode >= 200 && statusCode < 300)){
+            	    //error
+            	    callbacks.error(data);
+            	    return;
+            	}
+				changed_options = [];
+				pull(callbacks, false);
+        	};
+			var params = {};
+			for (var i = 0; i < changed_options.length; i++) {
+				var name = changed_options[i];
+				params[name] = options[name];
+			}
+			pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
+		}
+	}
+	
+	Object.defineProperties(this, {
+        "currentTemplate": {
+             "get": getCurrentTemplate
+        },
+		
+        "onChange" : {
+            "get" : function () { 
+                return onChange;
+            },
+            "set" : function (val){
+                onChange = val;
+                //start the onChange loops?
+            }
+        }
+    });
+}
+},{}],7:[function(require,module,exports){
 var PdfenFile = require('./pdfenFile.js');
-
+var PdfenOptions = require('./pdfenOptions.js');
+var PdfenTemplateDescription = require('./pdfenTemplateDescription.js');
+var PdfenGeneratedFile = require('./pdfenGeneratedFile.js');
 var pdfenExponentialBackoff = require('./pdfenExponentialBackoff.js');
 var pdfenSmartInterval = require('./pdfenSmartInterval.js');
-
+var pdfen = require('./pdfen.js');
 var interval_settings = {
 	min_polling_interval: 100,
 	fast_exponent : 2.2,
@@ -683,6 +1126,7 @@ var interval_settings = {
 
 module.exports = function (pdfenApi){
 	//constructor for pdfenSession
+	var pdfenSession = this;
 	var id = null;
 	var files = [];
 	var self = this;
@@ -691,7 +1135,13 @@ module.exports = function (pdfenApi){
 	var onOrderingChanged = [];
 	var disableUpdates = 0;
 	var onErrorCallback = function(){};
+	var onProcessCallback = null;
 	var language = "en-US";
+	var templates = [];
+	var template_map = {};
+	
+	var options = new PdfenOptions(pdfenApi, this);
+	
 	var triggerOnOrderingChange = function (){
         if(typeof onOrderingChanged === "function"){
             onOrderingChanged(local_ordering);
@@ -704,13 +1154,15 @@ module.exports = function (pdfenApi){
 	
 	var makeRawOrdering = function (ordering){
 		if (Array.isArray(ordering)) {
+			var new_ordering = [];
 			for(var i = 0; i < ordering.length; i++){
-				ordering[i] = makeRawOrdering(ordering[i]);
+				new_ordering.push(makeRawOrdering(ordering[i]));
 			}	
-			return ordering;
+			return new_ordering;
 		} else if (Array.isArray(ordering.children)) {
-			ordering.children = makeRawOrdering(ordering.children);
-			return ordering;
+			var new_ordering = Object.assign({}, ordering);
+			new_ordering.children = makeRawOrdering(ordering.children);
+			return new_ordering;
 		} else {
 			return ordering.id;
 		}
@@ -748,7 +1200,19 @@ module.exports = function (pdfenApi){
 			throw "This session is already logged in."
 		}
 		id = id_in;
-		this.update(callbacks);
+		var success = 0;
+		var cb = {};
+		cb.success = function (){
+			success += 1;
+			if(success === 2 && typeof callbacks !== 'undefined' && 'success' in callbacks){
+				callbacks.success();
+			}
+		}
+		cb.error = function (data){
+			callbacks.error(data)
+		}
+		this.update(cb);
+		options.pull(cb);
 	}
 	
 	
@@ -766,13 +1230,15 @@ module.exports = function (pdfenApi){
             }
 			if('session_id' in data){
 				id = data.session_id;
+			} else { 
+				return;
 			}
-			if (typeof callbacks !== 'undefined' && 'success' in callbacks && 'session_id' in data){
-				callbacks.success();
-			}
+			
+			options.pull(callbacks);
 		};
 		pdfenApi.POST('/sessions', {username: username, password: password}, post_cb, language);
 	};
+	
 	this.update = function (callbacks){
 		if(typeof callbacks == "undefined"){
 			callbacks = {error: onErrorCallback};
@@ -784,6 +1250,8 @@ module.exports = function (pdfenApi){
 		var files_done = false;
 		var raw_ordering = null;
 		var raw_files = null;
+		var templates_done = false;
+		var session_done = false;
 		if(disableUpdates > 0){
 			return;
 		}
@@ -877,6 +1345,10 @@ module.exports = function (pdfenApi){
 			remote_ordering = new_ordering;
 			local_ordering = new_ordering;
 			compareAndTriggerOrdering(old_ordering, new_ordering, triggerOnOrderingChange);
+			session_done = true;
+			if(typeof callbacks !== 'undefined' && 'success' in callbacks && templates_done){
+				callbacks.success();
+			}
 		}
 		
 		var ordering_cb = function(data, statusCode){
@@ -905,6 +1377,15 @@ module.exports = function (pdfenApi){
 		
 		pdfenApi.GET('/sessions/' + id + '/ordering', ordering_cb, language);
 		pdfenApi.GET('/sessions/' + id + '/files', files_cb, language);
+		var cb  = {};
+		cb.error = callbacks.error;
+		cb.success = function () {
+			templates_done = true;
+			if (session_done && typeof callbacks !== 'undefined' && 'success' in callbacks) {
+				callbacks.success();
+			}
+		}
+		updateTemplates(cb);
 	}
 	//callbacks is an object containing:
 	//  completed (optional)
@@ -922,6 +1403,9 @@ module.exports = function (pdfenApi){
 			var interval_function = pdfenExponentialBackoff(interval_settings);
 			//This is called after a poll result is given by the API.
 			var request_cb = function(data, statusCode){
+				if(progress_line === 0){
+					updateProcess(data, statusCode);
+				}
                 if(!(statusCode >= 200 && statusCode < 300)){
                     if(data !== null && 'process_result' in data){
 						if(data.process_result.messages.length > 1) {
@@ -942,7 +1426,7 @@ module.exports = function (pdfenApi){
 				}
 				if('process_result' in data){
 					if('success' in callbacks){
-						callbacks.success({url: data.process_result.url});
+						callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 					}
 				} else {
 					//Continue polling the request
@@ -974,15 +1458,20 @@ module.exports = function (pdfenApi){
 			pdfenApi.POST('/sessions/'+id+'/processes', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 		} else {
 			generate_cb = function (data, statusCode) {
-                if(!(statusCode >= 200 && statusCode < 300)){
+				updateProcess(data, statusCode);
+				if(!(statusCode >= 200 && statusCode < 300)){
                     callbacks.error(data);
                     return;
                 }
 				if (typeof callbacks !== 'undefined' && 'success' in callbacks && 'process_result' in data && 'url' in data.process_result){
-					callbacks.success(data.process_result.url);
+					callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 				}
 			}
-			pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {title : "My document", process_synchronous : true}}, generate_cb, language);
+			if(typeof callbacks !== 'undefined' && 'success' in callbacks){
+				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {title : "My document", process_synchronous : true}}, generate_cb, language);
+			} else {
+				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
+			}
 		}
 	};
 	
@@ -995,14 +1484,147 @@ module.exports = function (pdfenApi){
 		return null;
 	};
 	
+	var up_process_done = true;
+	var up_process_id = null;
+	var up_progress_line = 0;
+	var up_updateProcess_blocked = false;
+	var updateProcess = function(input_data, input_status_code) {
+		if(onProcessCallback === null || up_updateProcess_blocked){
+			return;
+		}
+		var cb = function (data, statusCode) {
+			var fetch_prev_process = function(){
+				up_updateProcess_blocked = true;
+				var int_cb = function (data, statusCode){
+					up_process_done = true;
+					up_updateProcess_blocked = false;
+					up_progress_line = 0;
+					if (!(statusCode >= 200 && statusCode < 300)) {
+						onErrorCallback(data);
+					}
+					if(!('process_result' in data)){
+						throw "The old process had no error but also wasn't done, this cannot happen.";
+					}
+					if(onProcessCallback === null){
+						return;
+					}
+					if('process_progress' in data){
+						for(var i = 0; i < data.process_progress.length; i++){
+							onProcessCallback("progress", data.process_progress[i]);
+						}
+					}
+					if('process_result' in data){
+						onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
+					}
+				};
+				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id,int_cb, language);
+			}
+			if (!(statusCode >= 200 && statusCode < 300)) {
+				if(data !== null && 'process_result' in data) {
+					up_process_id = null;
+					up_progress_line = 0;
+					onErrorCallback(data)
+					return;
+				}
+				if(statusCode === 404){
+					//No active process exists.
+					if(!up_process_done && up_process_id !== null){
+						fetch_prev_process();
+					}
+					return;
+				}
+				//else a normal error we just ignore this for now
+				return;
+			}
+			if(up_process_id !== data['process_id']){
+				//handle change
+				if(!up_process_done){
+					fetch_prev_process();
+					return;
+				} else {
+					up_process_id = data['process_id'];
+					up_process_done = false;
+					onProcessCallback("new", up_process_id);
+					if(up_progress_line !== 0){
+						up_progress_line = 0;
+						updateProcess();
+						return;
+					}
+				}
+			}
+			if('process_progress' in data){
+				for(var i = 0; i < data.process_progress.length; i++){
+					onProcessCallback("progress", data.process_progress[i]);
+					up_progress_line++;
+				}
+			}
+			if('process_result' in data){
+				up_process_done = true;
+				up_progress_line = 0;
+				onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
+			}
+		}
+		if(typeof input_data === "undefined"){
+			pdfenApi.GET("/sessions/"+id+"/current-process?start="+up_progress_line, cb, language);
+		} else {
+			cb(input_data, input_status_code)
+		}
+	};
+	
 	this.enableExternalEvents = function (){
 		//STUB
-		updateHandle = pdfenSmartInterval(this.update, 5000, 10000, 30);
+		var handler = function ()
+		{
+			pdfenSession.update({success: function(){pdfenSession.options.pull();} });
+			updateProcess();
+		}
+		updateHandle = pdfenSmartInterval(handler, 5000, 10000, 30);
 	};
 	
 	this.disableExternalEvents = function () {
 		clearInterval(updateHandle);
 	};
+	
+	this.getTemplateDescriptionById = function (id){
+		if(template_map.hasOwnProperty(id)){
+			return template_map[id];
+		}
+		return null;
+	}
+	
+	var updateTemplates = function(callback){
+		var templates_cb = function(data, statusCode){
+            if(!(statusCode >= 200 && statusCode < 300)){
+				callbacks.error(data);
+				return;
+			}
+			// do something with the templates
+			//array('template_id' => $template_id, 'name' => $name, 'type' => $type,
+            //       'user_defined' => $userDefined);
+			var new_templates = [];
+			var new_template_map = {};
+			var temp_data;
+			var temp;
+			for(var i = 0; i < data.length; i++){
+				temp_data = data[i];
+				if(template_map.hasOwnProperty(temp_data['template_id'])){
+					temp = template_map[temp_data['template_id']];
+					temp.__update(temp_data, secretToken);
+				} else {
+					temp = new PdfenTemplateDescription(pdfenApi, pdfenSession, data, secretToken);
+				}
+				new_templates.push(temp);
+				new_template_map[temp_data['template_id']] = temp;
+				if(options.currentTemplate !== null && options.currentTemplate.id === temp_data['template_id']){
+					options.currentTemplate.__update(temp_data, secretToken);
+				}
+			}
+			template_map = new_template_map;
+			templates = new_templates;
+			callback.success();
+		}
+		pdfenApi.GET('/sessions/' + id + '/templates', templates_cb, language);
+	}
 	
 	//Lets define the special properties (readonly, etc..)
 	Object.defineProperties(this, {
@@ -1015,6 +1637,12 @@ module.exports = function (pdfenApi){
 		"validFiles" : {
 			"get" : function () { return files.filter(function(file) { return file.id !== null;});}
 		},
+		"options" : {
+			"get" : function () { return options;}
+		},
+		"templateDescriptions" : {
+			"get" : function () { return templates.slice();}
+		},
 		"ordering" :{
 			"get" : function() { return local_ordering.slice(); },
 			"set" : function(val) { return setOrdering(val, {success : function(){}})}
@@ -1023,16 +1651,21 @@ module.exports = function (pdfenApi){
 			"get" : function(){ return language;},
 			"set" : function(val) { language = val;}
 		},
-		"onOrderingChanged" :{
+		"onOrderingChanged" : {
 			"get" : function() { return onOrderingChanged;},
 			"set" : function(val) { onOrderingChanged = val;}
 		},
+		"onProcessUpdate" : {
+			"get" : function() { return onProcessCallback; },
+			"set" : function(val) { onProcessCallback = val;}
+		},
 		"onError" : {
-			"set" : function(val){ onErrorCallback = val;}
+			"set" : function(val){ onErrorCallback = val;},
+			"get" : function(){ return onErrorCallback;}
 		}
     });
 }
-},{"./pdfenExponentialBackoff.js":3,"./pdfenFile.js":4,"./pdfenSmartInterval.js":6}],6:[function(require,module,exports){
+},{"./pdfen.js":2,"./pdfenExponentialBackoff.js":3,"./pdfenFile.js":4,"./pdfenGeneratedFile.js":5,"./pdfenOptions.js":6,"./pdfenSmartInterval.js":8,"./pdfenTemplateDescription.js":10}],8:[function(require,module,exports){
 /**
   * The setSmartTimeout(eventHandler, activeInt, fallbackInt) method 
   * calls a function or evaluates an expression periodical.
@@ -1085,11 +1718,268 @@ module.exports = (function(){
 		return setInterval(handleEvent, activeInt);
 	}
 })();
-},{}],7:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
+var PdfenTemplateField = require('./pdfenTemplateField.js');
 
-},{}],8:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],9:[function(require,module,exports){
+module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
+	var id = data['template_id'];
+	var name = data['name'];
+	var type = data['type'];
+	var user_defined = data['user_defined'];
+	var fields = [];
+	var field_map = {}
+	var field;
+	var pdfenTemplate = this;
+	for(var i = 0; i < data['fields'].length; i++){
+		field = data['fields'][i];
+		field_map[field['field_id']] = new PdfenTemplateField(field, pdfen_secretToken);
+		fields.push(field_map[field['field_id']]);
+	}
+	
+	this.__update = function(data, secretToken){
+		if(secretToken !== pdfen_secretToken){
+			throw "Not allowed";
+		}
+		id = data['template_id'];
+	    name = data['name'];
+	    type = data['type'];
+	    user_defined = data['user_defined'];
+		if(typeof data['fields'] !== 'undefined'){	
+			var new_fields = [];
+			var new_field_map = {};
+			var field;
+			for(var i = 0; i < data['fields'].length; i++){
+				field = data['fields'][i];
+				if(fields.hasOwnProperty(field['field_id'])){
+					new_field_map[field['field_id']] = fields[field['field_id']];
+					new_field_map[field['field_id']].__update(field, secretToken); 
+				} else{
+					new_field_map[field['field_id']] = new PdfenTemplateField(field, secretToken);
+				}
+				new_fields.push(new_field_map[field['field_id']]);
+			}
+			fields = new_fields;
+			field_map = new_field_map;
+		}
+	}
+	
+	this.update = function (callbacks){
+		var fetch_cb = function(data, statusCode, error){
+            if(!(statusCode >= 200 && statusCode < 300) || error){
+				callbacks.error(data);
+				return;
+			}
+			pdfenTemplate.__update(data, pdfen_secretToken);
+			callbacks.success();
+		}
+		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
+			pdfenSession.language);
+	}
+	
+	this.fetchTemplate = function(callback){
+		var PdfenTemplate = module.exports;
+		var fetch_cb = function(data, statusCode, error){
+            if(!(statusCode >= 200 && statusCode < 300) || error){
+				callback(null, data);
+				return;
+			}
+			var template = new PdfenTemplate(pdfenApi, pdfenSession, data, pdfen_secretToken);
+			callback(template, null);
+		}
+		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
+			pdfenSession.language);
+	}
+	
+	this.select = function(callbacks) {
+		pdfenSession.options.loadTemplate(this, callbacks);
+	}
+	
+	this.getFieldById = function (id) {
+		if(field_map.hasOwnProperty(id)){
+			return field_map[id];
+		}
+		return null;
+	}
+	
+	this.hasField = function(id){
+		return field_map.hasOwnProperty(id);
+	}
+	
+	Object.defineProperties(this, {
+        "id": {
+             "get": function() { return id;},
+        },
+		"name" : {
+			"get" : function() { return name;}
+		},
+		"type" : {
+			"get" : function() { return type;}
+		},
+		"isUserDefined" : { 
+			"get" : function() { return user_defined;}
+		},
+		"fields" : {
+			"get" : function() { return fields.slice();}
+		},
+		"isSelected" : {
+			"get" : function(){
+				return pdfenSession.options.currentTemplate.id === id;
+			}
+		}
+    });
+}
+},{"./pdfenTemplateField.js":11}],10:[function(require,module,exports){
+var PdfenTemplate = require('./pdfenTemplate.js');
+
+module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
+	var id = data['template_id'];
+	var name = data['name'];
+	var type = data['type'];
+	var user_defined = data['user_defined'];
+	
+	this.__update = function(data, secretToken){
+		if(secretToken !== pdfen_secretToken){
+			throw "Not allowed";
+		}
+		id = data['template_id'];
+	    name = data['name'];
+	    type = data['type'];
+	    user_defined = data['user_defined'];
+	}
+	
+	this.fetchTemplate = function(callback){
+		var fetch_cb = function(data, statusCode, error){
+            if(!(statusCode >= 200 && statusCode < 300) || error){
+				callback(null, data);
+				return;
+			}
+			var template = new PdfenTemplate(pdfenApi, pdfenSession, data, pdfen_secretToken);
+			callback(template, null);
+		}
+		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
+			pdfenSession.language);
+	}
+	
+	this.select = function(callbacks) {
+		pdfenSession.options.loadTemplate(this, callbacks);
+	}
+	
+	Object.defineProperties(this, {
+        "id": {
+             "get": function() { return id;},
+        },
+		"name" : {
+			"get" : function() { return name;}
+		},
+		"type" : {
+			"get" : function() { return type;}
+		},
+		"isUserDefined" : { 
+			"get" : function() { return user_defined;}
+		},
+		"isSelected" : {
+			"get" : function(){
+				return pdfenSession.options.currentTemplate.id === id;
+			}
+		}
+    });
+}
+},{"./pdfenTemplate.js":9}],11:[function(require,module,exports){
+module.exports = function (data, pdfen_secretToken){
+	var name = data['name'];
+	var field_id = data['field_id'];
+	var type = data['type'];
+	var description = data['description'];
+	var optional = data['optional'];
+	
+	this.__update = function(data, secretToken){
+		if(secretToken !== pdfen_secretToken){
+			throw "Not allowed";
+		}
+		name = data['name'];
+		field_id = data['field_id'];
+		type = data['type'];
+		description = data['description'];
+		optional = data['optional'];
+	}
+	
+	this.isCorrectValue = function (val){
+		if(optional && val === null){
+			return true;
+		}
+		var match, year, month, day, hour;
+		if(typeof type !== 'string'){
+			if(type.values.indexOf(val) === -1){
+				return false;
+			}
+		} else if(type === 'integer') {
+			if(val !== parseInt(val)){
+				return false;
+			}
+		} else if(type === 'number'){
+			if(val !== parseFloat(val)){
+				return false;
+			}
+		} else if(type === "single_line"){
+			if(typeof val !== "string" || /\r|\n/.exec(val) !== null) {
+				return false;
+			}
+		} else if(type === 'datetime') {
+			match = /^(\d{4})-([0,1]\d)-([0-3]\d)T([0-2]\d):([0-5]\d):([0-5]\d)$/.exec(val);
+			if (match === null) {
+				return false;
+			}
+			year = parseInt(match[1]);
+			month = parseInt(match[2]);
+			day = parseInt(match[3]);
+			hour = parseInt(match[4]);
+			if (month < 1 || month > 12 || day > (new Date(year, month + 1, 0)).getDate() || hour > 23) {
+				return false;
+			}
+		} else if(type === 'date'){
+			match = /^(\d{4})-([0,1]\d)-([0-3]\d{2})$/.exec(val);
+			if(match === null){
+				return false;
+			}
+			year = parseInt(match[1]);
+			month = parseInt(match[2]);
+			day = parseInt(match[3]);
+			if(month < 1 || month > 12 || day > (new Date(year, month + 1, 0)).getDate()){
+				return false;
+			}
+		} else if(type === 'boolean'){
+			if(val !== true && val !== false){
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	Object.defineProperties(this, {
+        "id": {
+             "get": function() { return field_id;},
+        },
+		"name" : {
+			"get" : function() { return name;}
+		},
+		"description" : {
+			"get" : function () { return description;}
+		},
+		"type" : {
+			"get" : function() { // if array then slice
+				if(Array.isArray(type)){
+					return type.slice();
+				}
+				return type;
+			}
+		}
+    });
+}
+},{}],12:[function(require,module,exports){
+
+},{}],13:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12}],14:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -2551,7 +3441,7 @@ function blitBuffer (src, dst, offset, length) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"base64-js":10,"ieee754":11,"isarray":12}],10:[function(require,module,exports){
+},{"base64-js":15,"ieee754":16,"isarray":17}],15:[function(require,module,exports){
 ;(function (exports) {
   'use strict'
 
@@ -2671,7 +3561,7 @@ function blitBuffer (src, dst, offset, length) {
   exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],11:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -2757,14 +3647,14 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],12:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],13:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3064,7 +3954,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],14:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var http = require('http');
 
 var https = module.exports;
@@ -3080,7 +3970,7 @@ https.request = function (params, cb) {
     return http.request.call(this, params, cb);
 }
 
-},{"http":37}],15:[function(require,module,exports){
+},{"http":42}],20:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -3105,7 +3995,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],16:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -3124,12 +4014,12 @@ module.exports = function (obj) {
     ))
 }
 
-},{}],17:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],18:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -3222,7 +4112,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],19:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/punycode v1.4.0 by @mathias */
 ;(function(root) {
@@ -3759,7 +4649,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],20:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3845,7 +4735,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],21:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3932,16 +4822,16 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],22:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":20,"./encode":21}],23:[function(require,module,exports){
+},{"./decode":25,"./encode":26}],28:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":24}],24:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":29}],29:[function(require,module,exports){
 // a duplex stream is just a stream that is both readable and writable.
 // Since JS doesn't have multiple prototypal inheritance, this class
 // prototypally inherits from Readable, and then parasitically from
@@ -4025,7 +4915,7 @@ function forEach (xs, f) {
   }
 }
 
-},{"./_stream_readable":26,"./_stream_writable":28,"core-util-is":29,"inherits":15,"process-nextick-args":30}],25:[function(require,module,exports){
+},{"./_stream_readable":31,"./_stream_writable":33,"core-util-is":34,"inherits":20,"process-nextick-args":35}],30:[function(require,module,exports){
 // a passthrough stream.
 // basically just the most minimal sort of Transform stream.
 // Every written chunk gets output as-is.
@@ -4054,7 +4944,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":27,"core-util-is":29,"inherits":15}],26:[function(require,module,exports){
+},{"./_stream_transform":32,"core-util-is":34,"inherits":20}],31:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -5033,7 +5923,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":24,"_process":18,"buffer":9,"core-util-is":29,"events":13,"inherits":15,"isarray":17,"process-nextick-args":30,"string_decoder/":42,"util":8}],27:[function(require,module,exports){
+},{"./_stream_duplex":29,"_process":23,"buffer":14,"core-util-is":34,"events":18,"inherits":20,"isarray":22,"process-nextick-args":35,"string_decoder/":47,"util":13}],32:[function(require,module,exports){
 // a transform stream is a readable/writable stream where you do
 // something with the data.  Sometimes it's called a "filter",
 // but that's not a great name for it, since that implies a thing where
@@ -5232,7 +6122,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":24,"core-util-is":29,"inherits":15}],28:[function(require,module,exports){
+},{"./_stream_duplex":29,"core-util-is":34,"inherits":20}],33:[function(require,module,exports){
 // A bit simpler than readable streams.
 // Implement an async ._write(chunk, encoding, cb), and it'll handle all
 // the drain event emission and buffering.
@@ -5763,7 +6653,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./_stream_duplex":24,"buffer":9,"core-util-is":29,"events":13,"inherits":15,"process-nextick-args":30,"util-deprecate":31}],29:[function(require,module,exports){
+},{"./_stream_duplex":29,"buffer":14,"core-util-is":34,"events":18,"inherits":20,"process-nextick-args":35,"util-deprecate":36}],34:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -5874,7 +6764,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../../../insert-module-globals/node_modules/is-buffer/index.js")})
-},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":16}],30:[function(require,module,exports){
+},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":21}],35:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -5898,7 +6788,7 @@ function nextTick(fn) {
 }
 
 }).call(this,require('_process'))
-},{"_process":18}],31:[function(require,module,exports){
+},{"_process":23}],36:[function(require,module,exports){
 (function (global){
 
 /**
@@ -5969,10 +6859,10 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],32:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":25}],33:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":30}],38:[function(require,module,exports){
 var Stream = (function (){
   try {
     return require('st' + 'ream'); // hack to fix a circular dependency issue when used with browserify
@@ -5986,13 +6876,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":24,"./lib/_stream_passthrough.js":25,"./lib/_stream_readable.js":26,"./lib/_stream_transform.js":27,"./lib/_stream_writable.js":28}],34:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":29,"./lib/_stream_passthrough.js":30,"./lib/_stream_readable.js":31,"./lib/_stream_transform.js":32,"./lib/_stream_writable.js":33}],39:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":27}],35:[function(require,module,exports){
+},{"./lib/_stream_transform.js":32}],40:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":28}],36:[function(require,module,exports){
+},{"./lib/_stream_writable.js":33}],41:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6121,7 +7011,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":13,"inherits":15,"readable-stream/duplex.js":23,"readable-stream/passthrough.js":32,"readable-stream/readable.js":33,"readable-stream/transform.js":34,"readable-stream/writable.js":35}],37:[function(require,module,exports){
+},{"events":18,"inherits":20,"readable-stream/duplex.js":28,"readable-stream/passthrough.js":37,"readable-stream/readable.js":38,"readable-stream/transform.js":39,"readable-stream/writable.js":40}],42:[function(require,module,exports){
 (function (global){
 var ClientRequest = require('./lib/request')
 var extend = require('xtend')
@@ -6203,7 +7093,7 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":39,"builtin-status-codes":41,"url":43,"xtend":45}],38:[function(require,module,exports){
+},{"./lib/request":44,"builtin-status-codes":46,"url":48,"xtend":50}],43:[function(require,module,exports){
 (function (global){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream)
 
@@ -6247,7 +7137,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],39:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 (function (process,global,Buffer){
 // var Base64 = require('Base64')
 var capability = require('./capability')
@@ -6373,9 +7263,7 @@ ClientRequest.prototype._onFinish = function () {
 			self._connect()
 		}, function (reason) {
 			self.emit('error', reason)
-		}).catch(function(error) {
-			self.emit('error', error.message)
- 		})
+		})
 	} else {
 		var xhr = self._xhr = new global.XMLHttpRequest()
 		try {
@@ -6530,7 +7418,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":38,"./response":40,"_process":18,"buffer":9,"inherits":15,"stream":36}],40:[function(require,module,exports){
+},{"./capability":43,"./response":45,"_process":23,"buffer":14,"inherits":20,"stream":41}],45:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -6706,7 +7594,7 @@ IncomingMessage.prototype._onXHRProgress = function () {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":38,"_process":18,"buffer":9,"inherits":15,"stream":36}],41:[function(require,module,exports){
+},{"./capability":43,"_process":23,"buffer":14,"inherits":20,"stream":41}],46:[function(require,module,exports){
 module.exports = {
   "100": "Continue",
   "101": "Switching Protocols",
@@ -6767,7 +7655,7 @@ module.exports = {
   "511": "Network Authentication Required"
 }
 
-},{}],42:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6990,7 +7878,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":9}],43:[function(require,module,exports){
+},{"buffer":14}],48:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7724,7 +8612,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":44,"punycode":19,"querystring":22}],44:[function(require,module,exports){
+},{"./util":49,"punycode":24,"querystring":27}],49:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -7742,7 +8630,7 @@ module.exports = {
   }
 };
 
-},{}],45:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
