@@ -722,6 +722,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         }
         var delete_cb = function(data, statusCode){
             if(statusCode >= 200 && statusCode < 300) {
+                id = null;
                 pdfenSession.update(callbacks);
             } else {
                 //error
@@ -1188,6 +1189,7 @@ module.exports = function (pdfenApi){
 		//local_ordering = ordering; The update will callback will take care of this.
 		disableUpdates++; 
 	}
+	this.setOrdering = setOrdering;
 	
 	//subclasses, bound to this session
 	//use emptyObject instead of null, to support polyfill bind
