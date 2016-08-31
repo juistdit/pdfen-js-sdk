@@ -299,6 +299,8 @@ var pdfenApi = {
 			},
 			followRedirect: false
 		};
+		
+			var err = new Error();
 
 		var registerResponseHandlers = function(response) {
 			var data = '';
@@ -308,6 +310,7 @@ var pdfenApi = {
 	  		});
 			  
 	  		response.on('end', function () {
+				console.log(err.stack);
 	    		if(data === ''){
 					callback(null, response.statusCode);
 				} else {
@@ -1401,6 +1404,12 @@ module.exports = function (pdfenApi){
 			var process_id;
 			var progress_line = 0;
 			var interval_function = pdfenExponentialBackoff(interval_settings);
+			if(typeof callbacks.error === 'undefined'){
+				callbacks.error = onErrorCallback;
+			}
+			if(typeof callbacks.progressError === 'undefined'){
+				callbacks.progressError = onErrorCallback;
+			}
 			//This is called after a poll result is given by the API.
 			var request_cb = function(data, statusCode){
 				if(progress_line === 0){
@@ -1457,6 +1466,15 @@ module.exports = function (pdfenApi){
 			}
 			pdfenApi.POST('/sessions/'+id+'/processes', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 		} else {
+			if(typeof callbacks === 'undefined'){
+				callbacks = {};
+			}
+			if(typeof callbacks.error === 'undefined'){
+				callbacks.error = onErrorCallback;
+			}
+			if(typeof callbacks.progressError === 'undefined'){
+				callbacks.progressError = onErrorCallback;
+			}
 			generate_cb = function (data, statusCode) {
 				updateProcess(data, statusCode);
 				if(!(statusCode >= 200 && statusCode < 300)){
@@ -1500,7 +1518,7 @@ module.exports = function (pdfenApi){
 					up_updateProcess_blocked = false;
 					up_progress_line = 0;
 					if (!(statusCode >= 200 && statusCode < 300)) {
-						onErrorCallback(data);
+						onErrorCallback({code : statusCode, message : data.process_result.messages.join("\n")});
 					}
 					if(!('process_result' in data)){
 						throw "The old process had no error but also wasn't done, this cannot happen.";
@@ -1565,7 +1583,7 @@ module.exports = function (pdfenApi){
 			}
 		}
 		if(typeof input_data === "undefined"){
-			pdfenApi.GET("/sessions/"+id+"/current-process?start="+up_progress_line, cb, language);
+			pdfenApi.GET("/sessions/"+id+"/current-process?start="+up_progress_line + '&noredirect', cb, language);
 		} else {
 			cb(input_data, input_status_code)
 		}
