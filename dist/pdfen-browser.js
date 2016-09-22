@@ -55,6 +55,7 @@ var PUTfile = function (path, content, callback, progress, language){
 		request.open("PUT", url, true);
 		request.setRequestHeader('Content-Type', 'application/octet-stream; charset=binary');
 		request.setRequestHeader('accept-language', language);
+		request.setRequestHeader('Expected-Payload-Length', content.size);
 		var starttime = new Date().getTime();
 		var last_time = starttime;
 		var last_send = 0;
@@ -459,6 +460,7 @@ var pdfenApi = {
 				var e = document.createEvent('MouseEvents');
 				e.initEvent('click' ,true ,true);
 				link.dispatchEvent(e);
+				callback();
 				return true;
 			}
 		} else {
@@ -572,7 +574,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         
         triggerOnChange();
     };
-    
+    var isUpdating = 0;
     var uploadProgress = null;   
     this.create = function(callbacks){
         if(title === null || content === null || extension === null){
@@ -590,6 +592,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         params.file_settings.title = title;
         
         var upload_cb = function(success, data){
+            isUpdating--;
             if(upload_handle !== null){
                 pdfenApi.stopRequest(upload_handle);
                 upload_handle = null;
@@ -611,6 +614,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         };
         
         var uploadFile = function(){
+            isUpdating++;
             if(upload_handle !== null){
                 pdfenApi.stopRequest(upload_handle);
                 upload_handle = null;
@@ -625,11 +629,13 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             pdfenSession.update();
             if(!(statusCode >= 200 && statusCode < 300)){
                 //error
+                isUpdating--;
                 callbacks.error(data);
                 return;
             }
             if('file_id' in data){
                 id = data.file_id;
+                isUpdating--;
                 if('success' in callbacks &&!('url' in params)){
                     uploadFile();
                 } else if(typeof callbacks !== 'undefined' && 'success' in callbacks){
@@ -637,7 +643,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
                 }
             }
         };
-        
+        isUpdating++;
         pdfenApi.POST('/sessions/' + pdfenSession.id + '/files', params, post_cb, pdfenSession.language);
 	};
     
@@ -652,6 +658,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         if(typeof content === "string" && content_changed){
             params.url = content;
         }
+        isUpdating++;
         params.file_settings = {};
         params.file_settings.extension = extension;
         params.file_settings.title = title;
@@ -662,6 +669,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         };
         
         var upload_cb = function(success, data){
+            isUpdating--;
             if(upload_handle !== null){
                 pdfenApi.stopRequest(upload_handle);
                 upload_handle = null;
@@ -684,7 +692,8 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         };
         
         var uploadFile = function() {
-            upload_handle = pdfenApi.PUT('/sessions/' + pdfenSession.id + '/files/' + id, content, upload_cb, 
+            isUpdating++;
+            upload_handle = pdfenApi.PUT('/sessions/' + pdfenSession.id + '/files/' + id + '/data', content, upload_cb, 
                 function(report){
                     uploadProgress = report;
                     callbacks.progress(report);
@@ -695,11 +704,13 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         var patch_cb = function (data, statusCode) {
             if(!(statusCode >= 200 && statusCode < 300)){
                 //error
+                isUpdating--;
                 callbacks.error(data);
                 return;
             }
             if('file_id' in data){
                 id = data.file_id;
+                isUpdating--;
                 if('success' in callbacks &&!('url' in params) && content_changed){
                     uploadFile();
                 } else if(typeof callbacks !== 'undefined' && 'success' in callbacks){
@@ -779,6 +790,11 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
                 //start the onChange loops?
             }
         },
+        "isUpdating" : {
+            "get" : function (){
+                return isUpdating > 0;
+            }
+        },
         "isUploading" : {
             "get" : function (){
                 return uploadProgress !== null;
@@ -818,7 +834,7 @@ module.exports = function (pdfenApi, pdfenSession, url){
             	return;
             } else {
 				var target = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/g.exec(data['content-disposition'])[1];
-				pdfenApi.download(rUrl, target, function() { callbacks.success}, pdfenSession.language);
+				pdfenApi.download(rUrl, target, function() { callbacks.success()}, pdfenSession.language);
 			}
 		}
 		pdfenApi.HEAD(rUrl, head_cb, pdfenSession.language);
@@ -1124,7 +1140,7 @@ var interval_settings = {
 	min_polling_interval: 100,
 	fast_exponent : 2.2,
 	max_fast_polling_interval : 1000,
-	max_slow_polling_interval : 5000,
+	max_slow_polling_interval : 2000,
 	slow_exponent : 1.1
 }
 
@@ -1400,6 +1416,27 @@ module.exports = function (pdfenApi){
 		if(id === null){
 			throw "Please login to generate a pdf.";
 		}
+		//check everything is uploaded.
+		var validFiles = this.validFiles;
+		for(var i = 0; i < validFiles.length; i++){
+			if(validFiles[i].isUploading){
+				//TODO make some kind of locale for the sdk.
+				if(language === 'nl-NL'){
+					if(typeof callbacks === 'undefined' || typeof callbacks.error === 'undefined'){
+						onErrorCallback({ message : "Alle bestanden zijn nog niet correct geüpload."});
+					} else {
+						callbacks.error({ message : "Alle bestanden zijn nog niet correct geüpload."});
+					}
+				} else {
+					if(typeof callbacks === 'undefined' || typeof callbacks.error === 'undefined'){
+						onErrorCallback({ message : "Not all files were correctly uploaded yet."});
+					} else {
+						callbacks.error({ message : "Not all files were correctly uploaded yet."});
+					}
+				}
+				return;
+			}
+		}
 		var generate_cb;
 		if(typeof callbacks !== 'undefined' && 'progress' in callbacks){
 			//In this mode we need to poll the progress so we can update the progress callbacks
@@ -1420,9 +1457,10 @@ module.exports = function (pdfenApi){
                 if(!(statusCode >= 200 && statusCode < 300)){
                     if(data !== null && 'process_result' in data){
 						if(data.process_result.messages.length > 1) {
-							callbacks.error("<ul><li>" + data.process_result.messages.join("</li><li>") + "</li></ul>");
+							var msg = "<ul><li>" + data.process_result.messages.join("</li><li>") + "</li></ul>";
+							callbacks.error({ message: msg });
 						} else {
-							callbacks.error(data.process_result.messages[0]);
+							callbacks.error({ message: data.process_result.messages[0] });
 						}
                         return;
                     } else {
@@ -1537,7 +1575,7 @@ module.exports = function (pdfenApi){
 						onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 					}
 				};
-				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id,int_cb, language);
+				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id + "?start="+up_progress_line,int_cb, language);
 			}
 			if (!(statusCode >= 200 && statusCode < 300)) {
 				if(data !== null && 'process_result' in data) {
