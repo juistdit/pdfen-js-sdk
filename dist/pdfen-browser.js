@@ -561,7 +561,6 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
     var content_changed = false;
     var properties_changed = false;
     var extension = null;
-    
     var upload_handle = null;
     
     this.__pushServerUpdate = function(token, title_in, extension_in, warnings_in){
@@ -586,6 +585,33 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         var params = {};
         if(typeof content === "string" && content.indexOf('http') === 0){
             params.url = content;
+        }
+        if(!pdfenSession._canUploadFileType(extension)){
+            var msg = "";
+            //TODO make some kind of locale for the sdk.
+            if(extension.toLowerCase() === 'pst'){
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Een PST bestand kan niet geüpload worden wanneer andere soorten bestanden al geüpload zijn.";
+                } else {
+                    msg = "A PST file can't be uploaded when different files are already uploaded.";
+                }
+            } else if(extension.toLowerCase() === 'zip'){
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Een ZIP bestand kan niet geüpload worden wanneer andere soorten bestanden al geüpload zijn.";
+                } else {
+                    msg = "A ZIP file can't be uploaded when different files are already uploaded.";
+                }
+            } else {
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Normale bestanden kunnen niet geüpload worden naar een ZIP of PST sessie.";
+                } else {
+                    msg = "Normal documents can't be uploaded to a ZIP or PST only session.";
+                }
+            }
+            if('error' in callbacks){
+                callbacks.error({message:msg});
+            }
+            return;
         }
         params.file_settings = {};
         params.file_settings.extension = extension;
@@ -655,8 +681,35 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             throw "This file is not yet created.";
         }
         var params = {};
-        if(typeof content === "string" && content_changed){
+        if(typeof content === "string" && content_changed) {
             params.url = content;
+        }
+        if(!pdfenSession._canUploadFileType(extension)){
+            var msg = "";
+            //TODO make some kind of locale for the sdk.
+            if(extension.toLowerCase() === 'pst'){
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Een PST bestand kan niet geüpload worden wanneer andere soorten bestanden al geüpload zijn.";
+                } else {
+                    msg = "A PST file can't be uploaded when different files are already uploaded.";
+                }
+            } else if(extension.toLowerCase() === 'zip'){
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Een ZIP bestand kan niet geüpload worden wanneer andere soorten bestanden al geüpload zijn.";
+                } else {
+                    msg = "A ZIP file can't be uploaded when different files are already uploaded.";
+                }
+            } else {
+                if(pdfenSession.language === 'nl-NL'){
+                    msg = "Normale bestanden kunnen niet geüpload worden naar een ZIP of PST sessie.";
+                } else {
+                    msg = "Normal documents can't be uploaded to a ZIP or PST only session.";
+                }
+            }
+            if('error' in callbacks){
+                callbacks.error(msg);
+            }
+            return;
         }
         isUpdating++;
         params.file_settings = {};
@@ -779,7 +832,9 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         },
         "extension" : {
             "get": function () { return extension; },
-            "set": function(val) { extension = val.toLowerCase(); properties_changed = true;}
+            "set": function(val) { 
+                extension = val.toLowerCase();
+                properties_changed = true;}
         },
         "onChange" : {
             "get" : function () { 
@@ -955,7 +1010,6 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			throw "This object hasn't synced properly with the server";
 		}
 		
-		var fields = temp.fields;
 		if(!temp.hasField(name)){
 			throw "The field '" + name + "' does not exist";
 		}
@@ -1648,6 +1702,27 @@ module.exports = function (pdfenApi){
 			return template_map[id];
 		}
 		return null;
+	}
+	
+	this._canUploadFileType = function (type){
+		type = type.toLowerCase();
+		var file;
+		var extension;
+		for(var i = 0; i < files.length; i++){
+			file = files[i];
+			if(!file.isUploading && !file.isUpdating && file.id === null){
+				continue;
+			}
+			extension = file.extension.toLowerCase();
+			if(extension === 'pst' && type !== 'pst'){
+				return false;
+			} else if (extension === 'zip' && type !== 'zip'){
+				return false;
+			} else if ((extension !== 'zip'  && extension !== 'pst') && (type === 'zip' || type === 'pst')){
+				return false;
+			}
+		}
+		return true;
 	}
 	
 	var updateTemplates = function(callback){
