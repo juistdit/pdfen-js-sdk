@@ -968,10 +968,8 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 					return;
 				}
 				
-				if(options['template_id'] !== in_template.id){
-					template = in_template;
-					template_id = data[name];
-				}
+				template = in_template;
+				
 				success_cnt += 1;
 				if(success_cnt === 2){
 					triggerOnChange();
@@ -987,7 +985,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 				}
 			}
 			cb.error = callbacks.error;
-			pull(cb, true);
+			pull(cb, true, true);
 		};
 		var params = { template_id : template_id};
 		pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
@@ -1022,7 +1020,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		changed_options.push(name);
 	}
 	
-	var pull = function(callbacks, disable_changed){
+	var pull = function(callbacks, disable_changed, disable_template){
 		
 		if(disable_pull){
 			return;
@@ -1122,16 +1120,18 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 				callbacks.success();
 			}
 		}
-		//if(template !== null){
-		//	template.update(temp_cb);
-		//}
+		if(disable_template){
+			template_success = true;
+		} else if(template !== null){
+			template.update(temp_cb);
+		}
 		
 		pdfenApi.GET('/sessions/' + pdfenSession.id + '/options', get_cb, pdfenSession.language);
 	}
 	
 	
 	this.pull = function(callbacks){
-		pull(callbacks, false);
+		pull(callbacks, false, false);
 	}
 	
 	this.update = function (callbacks){
@@ -1146,7 +1146,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		}
 		
 		if (changed_options.length === 0) {
-			pull(callbacks, false);
+			pull(callbacks, false, false);
 		} else {
 			var patch_cb = function (data, statusCode) {
             	if(!(statusCode >= 200 && statusCode < 300)){
@@ -1155,7 +1155,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
             	    return;
             	}
 				changed_options = [];
-				pull(callbacks, false);
+				pull(callbacks, false, false);
         	};
 			var params = {};
 			for (var i = 0; i < changed_options.length; i++) {
@@ -2061,6 +2061,18 @@ module.exports = function (data, pdfen_secretToken){
 			}
 		} else if(type === 'datetime') {
 			match = /^(\d{4})-([0,1]\d)-([0-3]\d)T([0-2]\d):([0-5]\d):([0-5]\d)$/.exec(val);
+			if (match === null) {
+				return false;
+			}
+			year = parseInt(match[1]);
+			month = parseInt(match[2]);
+			day = parseInt(match[3]);
+			hour = parseInt(match[4]);
+			if (month < 1 || month > 12 || day > (new Date(year, month + 1, 0)).getDate() || hour > 23) {
+				return false;
+			}
+		} else if(type === 'time') {
+			match = /^([0-2]\d):([0-5]\d):([0-5]\d)$/.exec(val);
 			if (match === null) {
 				return false;
 			}
