@@ -43,7 +43,7 @@ var settings = {
 	api_root_path : "/api/v1",
 	upload_buffer_size : 4096,
 	smoothing_factor : 0.01
-}
+};
 
 var pdfenSession = require('./pdfenSession.js');
 
@@ -68,7 +68,7 @@ var PUTfile = function (path, content, callback, progress, language){
 		var upload_progress_interval = setInterval(
 				function(){
 					if(evt_send !== null && evt_total !== null){
-						var send = evt_send
+						var send = evt_send;
 						if(send > content_length - 100){
 							send = content_length - 100;
 						}
@@ -95,7 +95,7 @@ var PUTfile = function (path, content, callback, progress, language){
 		request.upload.onprogress = function (e){
 			evt_send = e.loaded;
 			evt_total = e.total;
-		}
+		};
 		request.onreadystatechange = function (oEvent) {  
     		if (request.readyState === 4) {
 				var current_time = new Date().getTime();
@@ -201,16 +201,16 @@ var PUTpath = function (path, content, callback, progress, language){
 			request_buffer[request_id] = put_req;
 		});
 		return result;
-	}
+	};
 	
 	
 var downloadBrowser = function () {
 	
-}
+};
 	
 var downloadPath = function () {
 	
-}
+};
 
 
 var pdfenApi = {
@@ -311,7 +311,7 @@ var pdfenApi = {
 	  		});
 			  
 	  		response.on('end', function () {
-				console.log(err.stack);
+				//console.log(err.stack);
 	    		if(data === ''){
 					callback(null, response.statusCode);
 				} else {
@@ -486,6 +486,7 @@ var pdfenApi = {
 		if(request.request_type === "node"){
 			if(request_buffer[request.request] === null || request_buffer[request.request] === false){
 				//Not yet started, but indicate with false that we should not start the request.
+				// FIXME
 				request_buffer[request.request] === false;
 			} else {
 				//retrieve the request object and abort it.
@@ -496,7 +497,7 @@ var pdfenApi = {
 			request.request.abort();
 		}
 	}
-}
+};
 
  //use emptyObject instead of null, to support polyfill bind
  //A fix for browsers that do not support bind
@@ -544,9 +545,9 @@ module.exports = function (settings){
 		}
 		last_interval = Math.round(last_interval);
 		return last_interval;
-	}
+	};
 	return interval_function;
-}
+};
 
 			
 },{}],4:[function(require,module,exports){
@@ -791,9 +792,8 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             } else {
                 //error
                 callbacks.error(data);
-                return;
             }
-        }
+        };
         pdfenApi.DELETE('/sessions/' + pdfenSession.id + '/files/' + id, delete_cb, pdfenSession.language);
     };
     
@@ -811,7 +811,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
                 onChange[i](this);
             }
         }
-    }
+    };
     
 	//Lets define the special properties (readonly, etc..)
 	Object.defineProperties(this, {
@@ -861,7 +861,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             }
         }
     });
-}
+};
 },{}],5:[function(require,module,exports){
 module.exports = function (pdfenApi, pdfenSession, url){
 	
@@ -884,23 +884,23 @@ module.exports = function (pdfenApi, pdfenSession, url){
           		//error
 				var error_cb = function(data, statusCode){
 					callbacks.error(data['message']);
-				}
+				};
 				pdfenApi.GET(rUrl, error_cb, pdfenSession.language);
             	return;
             } else {
 				var target = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/g.exec(data['content-disposition'])[1];
 				pdfenApi.download(rUrl, target, function() { callbacks.success()}, pdfenSession.language);
 			}
-		}
+		};
 		pdfenApi.HEAD(rUrl, head_cb, pdfenSession.language);
-	}
+	};
 	
 	Object.defineProperties(this, {
         "url": {
              "get": function(){return url;}
         }
     });
-}
+};
 },{}],6:[function(require,module,exports){
 module.exports = function (pdfenApi, pdfenSession, template_key){
 	
@@ -910,19 +910,19 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 	var disable_pull = false;
 	var onChange = function(){
 		
-	}
+	};
 	var template = null;
 	
 	var triggerOnChange = function () {
 		onChange();
-	}
+	};
 	
 	var getCurrentTemplate = function(){
 		if(template !== null && options['template_id'] === template.id){
 			return template;
 		}
 		return null;
-	}
+	};
 	
 	this.loadTemplate = function(val, callbacks){
 		if((typeof val) !== "string"){
@@ -983,13 +983,13 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 					triggerOnChange();
 					callbacks.success();
 				}
-			}
+			};
 			cb.error = callbacks.error;
 			pull(cb, true, true);
 		};
 		var params = { template_id : template_id};
 		pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
-	}
+	};
 	
 	this.getOption = function(name){
 		var temp = getCurrentTemplate();
@@ -1000,7 +1000,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			throw "No field '" + name + "' exists using the current template.";
 		}
 		return options[name];
-	}
+	};
 	
 	this.setOption = function (name, val){
 		var temp = getCurrentTemplate();
@@ -1018,7 +1018,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		
 		options[name] = val;
 		changed_options.push(name);
-	}
+	};
 	
 	var pull = function(callbacks, disable_changed, disable_template){
 		
@@ -1047,7 +1047,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
             	callbacks.error(data);
             	return;
             }
-			var options_cpy = Object.assign({}, options)
+			var options_cpy = Object.assign({}, options);
 			for (var name in data) {
     			if (!data.hasOwnProperty(name)) {
        		 		continue;
@@ -1063,7 +1063,8 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 							pdfenSession.update({success: function(){get_cb(data, statusCode);}, error: callbacks.error});
 							return;
 						} else if(template_desc === null){
-							callbacks.error("The template did not exist!");
+							callbacks.error({ code : 0, 'message': "The template did not exist!"});
+							return;
 						}
 						reloading_template = true;
 						template_desc.fetchTemplate(function(in_template, error){
@@ -1111,7 +1112,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 					callbacks.success();
 				}
 			}
-		}
+		};
 		var temp_cb = { };
 		temp_cb.error = callbacks.error;
 		temp_cb.success = function(){
@@ -1119,20 +1120,20 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			if(options_success){
 				callbacks.success();
 			}
-		}
-		if(disable_template){
+		};
+		if(disable_template || template === null){
 			template_success = true;
-		} else if(template !== null){
+		} else {
 			template.update(temp_cb);
 		}
 		
 		pdfenApi.GET('/sessions/' + pdfenSession.id + '/options', get_cb, pdfenSession.language);
-	}
+	};
 	
 	
 	this.pull = function(callbacks){
 		pull(callbacks, false, false);
-	}
+	};
 	
 	this.update = function (callbacks){
 		if(typeof callbacks == "undefined"){
@@ -1164,7 +1165,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			}
 			pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
 		}
-	}
+	};
 	
 	Object.defineProperties(this, {
         "currentTemplate": {
@@ -1181,7 +1182,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
             }
         }
     });
-}
+};
 },{}],7:[function(require,module,exports){
 var PdfenFile = require('./pdfenFile.js');
 var PdfenOptions = require('./pdfenOptions.js');
@@ -1196,7 +1197,7 @@ var interval_settings = {
 	max_fast_polling_interval : 1000,
 	max_slow_polling_interval : 2000,
 	slow_exponent : 1.1
-}
+};
 
 module.exports = function (pdfenApi){
 	//constructor for pdfenSession
@@ -1224,7 +1225,7 @@ module.exports = function (pdfenApi){
                 onOrderingChanged[i](local_ordering);
             }
         }
-    }
+    };
 	
 	var makeRawOrdering = function (ordering){
 		if (Array.isArray(ordering)) {
@@ -1240,7 +1241,7 @@ module.exports = function (pdfenApi){
 		} else {
 			return ordering.id;
 		}
-	}
+	};
 	
 	var setOrdering = function(ordering, callbacks){
 		//todo... is this needed?
@@ -1254,11 +1255,11 @@ module.exports = function (pdfenApi){
                 //error
                 callbacks.error(data);
             }
-		}
+		};
 		pdfenApi.PUTdata('/sessions/' + id + '/ordering', ordering, ordering_cb, language);
 		//local_ordering = ordering; The update will callback will take care of this.
 		disableUpdates++; 
-	}
+	};
 	this.setOrdering = setOrdering;
 	
 	//subclasses, bound to this session
@@ -1282,13 +1283,17 @@ module.exports = function (pdfenApi){
 			if(success === 2 && typeof callbacks !== 'undefined' && 'success' in callbacks){
 				callbacks.success();
 			}
-		}
-		cb.error = function (data){
-			callbacks.error(data)
-		}
+		};
+		cb.error = function (data) {
+			if(typeof callbacks !== 'undefined' && 'error' in callbacks){
+				callbacks.error(data)
+			} else {
+				onErrorCallback(data);
+			}
+		};
 		this.update(cb);
 		options.pull(cb);
-	}
+	};
 	
 	
 	// callbacks is an object containing
@@ -1353,7 +1358,7 @@ module.exports = function (pdfenApi){
 				}
 				return null;
 			}
-		}
+		};
 		
 		var compareAndTriggerOrdering = function (old_ordering, new_ordering, trigger){
 			if(Array.isArray(old_ordering) !== Array.isArray(new_ordering)){
@@ -1386,7 +1391,7 @@ module.exports = function (pdfenApi){
             }
            
 			return false;
-		}
+		};
 		
 		var update_cb = function(){
 			//update the files and set the properties correctly.
@@ -1424,7 +1429,7 @@ module.exports = function (pdfenApi){
 			if(typeof callbacks !== 'undefined' && 'success' in callbacks && templates_done){
 				callbacks.success();
 			}
-		}
+		};
 		
 		var ordering_cb = function(data, statusCode){
             if(!(statusCode >= 200 && statusCode < 300)){
@@ -1436,7 +1441,7 @@ module.exports = function (pdfenApi){
 			if(files_done){
 				update_cb();
 			}
-		}
+		};
 		
 		var files_cb = function(data, statusCode, error){
             if(!(statusCode >= 200 && statusCode < 300) || error){
@@ -1448,7 +1453,7 @@ module.exports = function (pdfenApi){
 			if(ordering_done){
 				update_cb();
 			}
-		}
+		};
 		
 		pdfenApi.GET('/sessions/' + id + '/ordering', ordering_cb, language);
 		pdfenApi.GET('/sessions/' + id + '/files', files_cb, language);
@@ -1459,9 +1464,9 @@ module.exports = function (pdfenApi){
 			if (session_done && typeof callbacks !== 'undefined' && 'success' in callbacks) {
 				callbacks.success();
 			}
-		}
+		};
 		updateTemplates(cb);
-	}
+	};
 	//callbacks is an object containing:
 	//  completed (optional)
 	//  progress (optional)
@@ -1533,14 +1538,14 @@ module.exports = function (pdfenApi){
 					}
 				} else {
 					//Continue polling the request
-					var delay = interval_function(data.process_progress.length !== 0)
+					var delay = interval_function(data.process_progress.length !== 0);
 					setTimeout(request_progress, delay);	
 				}
-			}
+			};
 			var request_progress = function (){
 				//Poll a new progress update and send the data to request_cb
 				pdfenApi.GET('/sessions/'+id+'/processes/'+process_id + '?start='+progress_line, request_cb, language);
-			}
+			};
 			//This is called after the process is started.
 			generate_cb = function (data, statusCode) {
                 if(!(statusCode >= 200 && statusCode < 300)){
@@ -1557,7 +1562,7 @@ module.exports = function (pdfenApi){
 				} else {
 					request_progress();
 				}
-			}
+			};
 			pdfenApi.POST('/sessions/'+id+'/processes', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 		} else {
 			if(typeof callbacks === 'undefined'){
@@ -1578,7 +1583,7 @@ module.exports = function (pdfenApi){
 				if (typeof callbacks !== 'undefined' && 'success' in callbacks && 'process_result' in data && 'url' in data.process_result){
 					callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 				}
-			}
+			};
 			if(typeof callbacks !== 'undefined' && 'success' in callbacks){
 				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {title : "My document", process_synchronous : true}}, generate_cb, language);
 			} else {
@@ -1630,12 +1635,12 @@ module.exports = function (pdfenApi){
 					}
 				};
 				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id + "?start="+up_progress_line,int_cb, language);
-			}
+			};
 			if (!(statusCode >= 200 && statusCode < 300)) {
 				if(data !== null && 'process_result' in data) {
 					up_process_id = null;
 					up_progress_line = 0;
-					onErrorCallback(data)
+					onErrorCallback(data);
 					return;
 				}
 				if(statusCode === 404){
@@ -1675,7 +1680,7 @@ module.exports = function (pdfenApi){
 				up_progress_line = 0;
 				onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 			}
-		}
+		};
 		if(typeof input_data === "undefined"){
 			pdfenApi.GET("/sessions/"+id+"/current-process?start="+up_progress_line + '&noredirect', cb, language);
 		} else {
@@ -1689,7 +1694,7 @@ module.exports = function (pdfenApi){
 		{
 			pdfenSession.update({success: function(){pdfenSession.options.pull();} });
 			updateProcess();
-		}
+		};
 		updateHandle = pdfenSmartInterval(handler, 5000, 10000, 30);
 	};
 	
@@ -1702,6 +1707,47 @@ module.exports = function (pdfenApi){
 			return template_map[id];
 		}
 		return null;
+	};
+	
+	this.clone = function (callbacks) {
+		if(id === null){
+			throw "The session has not yet been created.";
+		}
+		if(typeof callbacks === 'undefined' && 'error' )
+		cb.error = function (data) {
+			if(typeof callbacks !== 'undefined' && 'error' in callbacks){
+				callbacks.error(data)
+			} else {
+				onErrorCallback(data);
+			}
+		};
+		var post_cb = function(data, statusCode){
+            if(!(statusCode >= 200 && statusCode < 300) || !('session_id' in data)) {
+                if(typeof callbacks !== 'undefined' && 'error' in callbacks){
+					callbacks.error(data)
+				} else {
+					onErrorCallback(data);
+				}
+                return;
+            }
+			var clone = new module.exports(pdfenApi);
+			var cb = {};
+			cb.success = function (){
+				if(typeof callbacks !== 'undefined' && 'success' in callbacks){
+					callbacks.success(clone);
+				}
+			};
+			cb.error = function (data) {
+				if(typeof callbacks !== 'undefined' && 'error' in callbacks){
+					callbacks.error(data)
+				} else {
+					onErrorCallback(data);
+				}
+			};
+			clone.load(data['session_id'], cb)
+		};
+		
+		pdfenApi.POST('/sessions', {source_id: id}, post_cb, language);
 	}
 	
 	this._canUploadFileType = function (type){
@@ -1723,7 +1769,7 @@ module.exports = function (pdfenApi){
 			}
 		}
 		return true;
-	}
+	};
 	
 	var updateTemplates = function(callback){
 		var templates_cb = function(data, statusCode){
@@ -1755,17 +1801,17 @@ module.exports = function (pdfenApi){
 			template_map = new_template_map;
 			templates = new_templates;
 			callback.success();
-		}
+		};
 		pdfenApi.GET('/sessions/' + id + '/templates', templates_cb, language);
-	}
+	};
 	
 	//Lets define the special properties (readonly, etc..)
 	Object.defineProperties(this, {
         "id": {
-             "get": function() { return id;},
+             "get": function() { return id;}
         },
 		"files" : {
-			"get" : function () { return files.slice(); },
+			"get" : function () { return files.slice(); }
 		},
 		"validFiles" : {
 			"get" : function () { return files.filter(function(file) { return file.id !== null;});}
@@ -1797,7 +1843,7 @@ module.exports = function (pdfenApi){
 			"get" : function(){ return onErrorCallback;}
 		}
     });
-}
+};
 },{"./pdfen.js":2,"./pdfenExponentialBackoff.js":3,"./pdfenFile.js":4,"./pdfenGeneratedFile.js":5,"./pdfenOptions.js":6,"./pdfenSmartInterval.js":8,"./pdfenTemplateDescription.js":10}],8:[function(require,module,exports){
 /**
   * The setSmartTimeout(eventHandler, activeInt, fallbackInt) method 
@@ -1847,7 +1893,7 @@ module.exports = (function(){
 			} else {
 				not_active_counter++;
 			}
-		}
+		};
 		return setInterval(handleEvent, activeInt);
 	}
 })();
@@ -1860,7 +1906,7 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 	var type = data['type'];
 	var user_defined = data['user_defined'];
 	var fields = [];
-	var field_map = {}
+	var field_map = {};
 	var field;
 	var pdfenTemplate = this;
 	for(var i = 0; i < data['fields'].length; i++){
@@ -1894,7 +1940,7 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			fields = new_fields;
 			field_map = new_field_map;
 		}
-	}
+	};
 	
 	this.update = function (callbacks){
 		var fetch_cb = function(data, statusCode, error){
@@ -1904,10 +1950,10 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			}
 			pdfenTemplate.__update(data, pdfen_secretToken);
 			callbacks.success();
-		}
+		};
 		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
 			pdfenSession.language);
-	}
+	};
 	
 	this.fetchTemplate = function(callback){
 		var PdfenTemplate = module.exports;
@@ -1918,29 +1964,29 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			}
 			var template = new PdfenTemplate(pdfenApi, pdfenSession, data, pdfen_secretToken);
 			callback(template, null);
-		}
+		};
 		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
 			pdfenSession.language);
-	}
+	};
 	
 	this.select = function(callbacks) {
 		pdfenSession.options.loadTemplate(this, callbacks);
-	}
+	};
 	
 	this.getFieldById = function (id) {
 		if(field_map.hasOwnProperty(id)){
 			return field_map[id];
 		}
 		return null;
-	}
+	};
 	
 	this.hasField = function(id){
 		return field_map.hasOwnProperty(id);
-	}
+	};
 	
 	Object.defineProperties(this, {
         "id": {
-             "get": function() { return id;},
+             "get": function() { return id;}
         },
 		"name" : {
 			"get" : function() { return name;}
@@ -1960,7 +2006,7 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			}
 		}
     });
-}
+};
 },{"./pdfenTemplateField.js":11}],10:[function(require,module,exports){
 var PdfenTemplate = require('./pdfenTemplate.js');
 
@@ -1978,7 +2024,7 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 	    name = data['name'];
 	    type = data['type'];
 	    user_defined = data['user_defined'];
-	}
+	};
 	
 	this.fetchTemplate = function(callback){
 		var fetch_cb = function(data, statusCode, error){
@@ -1988,18 +2034,18 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			}
 			var template = new PdfenTemplate(pdfenApi, pdfenSession, data, pdfen_secretToken);
 			callback(template, null);
-		}
+		};
 		pdfenApi.GET('/sessions/' + pdfenSession.id + '/templates/' + id, fetch_cb,
 			pdfenSession.language);
-	}
+	};
 	
 	this.select = function(callbacks) {
 		pdfenSession.options.loadTemplate(this, callbacks);
-	}
+	};
 	
 	Object.defineProperties(this, {
         "id": {
-             "get": function() { return id;},
+             "get": function() { return id;}
         },
 		"name" : {
 			"get" : function() { return name;}
@@ -2016,7 +2062,7 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 			}
 		}
     });
-}
+};
 },{"./pdfenTemplate.js":9}],11:[function(require,module,exports){
 module.exports = function (data, pdfen_secretToken){
 	var name = data['name'];
@@ -2034,7 +2080,7 @@ module.exports = function (data, pdfen_secretToken){
 		type = data['type'];
 		description = data['description'];
 		optional = data['optional'];
-	}
+	};
 	
 	this.isCorrectValue = function (val){
 		if(optional && val === null){
@@ -2100,11 +2146,11 @@ module.exports = function (data, pdfen_secretToken){
 			}
 		}
 		return true;
-	}
+	};
 	
 	Object.defineProperties(this, {
         "id": {
-             "get": function() { return field_id;},
+             "get": function() { return field_id;}
         },
 		"name" : {
 			"get" : function() { return name;}
@@ -2121,7 +2167,7 @@ module.exports = function (data, pdfen_secretToken){
 			}
 		}
     });
-}
+};
 },{}],12:[function(require,module,exports){
 
 },{}],13:[function(require,module,exports){
