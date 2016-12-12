@@ -38,7 +38,7 @@ if (!Object.assign) {
 
 var https = require( "https" );
 
-var settings = {
+module.exports.settings = {
 	api_host : 'www.pdfen.com',
 	api_root_path : "/api/v1",
 	upload_buffer_size : 4096,
@@ -51,7 +51,7 @@ var PUTfile = function (path, content, callback, progress, language){
 		var content_length = content.size;
 		//Implementation using XMLHttpRequest: browser only!
 		var request = new XMLHttpRequest();
-		var url = 'https://' + settings.api_host + settings.api_root_path + path;
+		var url = 'https://' + module.exports.settings.api_host + module.exports.settings.api_root_path + path;
 		request.open("PUT", url, true);
 		request.setRequestHeader('Content-Type', 'application/octet-stream; charset=binary');
 		request.setRequestHeader('accept-language', language);
@@ -75,7 +75,7 @@ var PUTfile = function (path, content, callback, progress, language){
 						var current_time = new Date().getTime();
 						var speed = (send - last_send) / (current_time - last_time) * 1000;
 						upload_speed = smoothing_factor * speed + (1- smoothing_factor) * upload_speed;
-						smoothing_factor = (smoothing_factor + settings.smoothing_factor) / 2; 
+						smoothing_factor = (smoothing_factor + module.exports.settings.smoothing_factor) / 2; 
 						if(state === 4){
 							progress({
 								send : send,
@@ -133,8 +133,8 @@ var PUTpath = function (path, content, callback, progress, language){
 			}
 			var content_length = stat.size;
 			var put_options = {
-				hostname: settings.api_host,
-				path: settings.api_root_path + path,
+				hostname: module.exports.settings.api_host,
+				path: module.exports.settings.api_root_path + path,
 				method: 'PUT',
 				protocol: 'https:',//Seems to be required for browserify
 				headers: {
@@ -179,7 +179,7 @@ var PUTpath = function (path, content, callback, progress, language){
 						var current_time = new Date().getTime();
 						var speed = (send - last_send) / (current_time - last_time) * 1000;
 						upload_speed = smoothing_factor * speed + (1- smoothing_factor) * upload_speed;
-						smoothing_factor = (smoothing_factor + settings.smoothing_factor) / 2; 
+						smoothing_factor = (smoothing_factor + module.exports.settings.smoothing_factor) / 2; 
 						if(state === 4){
 							progress({
 								send : send,
@@ -196,7 +196,7 @@ var PUTpath = function (path, content, callback, progress, language){
 						last_time = current_time;
 					}
 				}, 50);
-			fs.createReadStream(content, { bufferSize: settings.upload_buffer_size })
+			fs.createReadStream(content, { bufferSize: module.exports.settings.upload_buffer_size })
 					.pipe(put_req);
 			request_buffer[request_id] = put_req;
 		});
@@ -217,8 +217,8 @@ var pdfenApi = {
 	POST : function(path, data, callback, language){
 		var json = JSON.stringify(data);
 		var post_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'POST',
 			headers: {
@@ -254,8 +254,8 @@ var pdfenApi = {
 	PATCH : function(path, data, callback, language){
 		var json = JSON.stringify(data);
 		var patch_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'PATCH',
 			headers: {
@@ -291,8 +291,8 @@ var pdfenApi = {
 	},
 	GET : function(path, callback, language){
 		var get_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'GET',
 			headers: {
@@ -329,8 +329,8 @@ var pdfenApi = {
 	
 	DELETE : function(path, callback, language){
 		var get_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'DELETE',
 			headers: {
@@ -364,8 +364,8 @@ var pdfenApi = {
 	PUTdata : function (path, data, callback, language){
 		var json = JSON.stringify(data);
 		var put_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'PUT',
 			headers: {
@@ -409,8 +409,8 @@ var pdfenApi = {
 	
 	HEAD : function(path, callback, language){
 		var head_options = {
-			hostname: settings.api_host,
-			path: settings.api_root_path + path,
+			hostname: module.exports.settings.api_host,
+			path: module.exports.settings.api_root_path + path,
 			protocol: 'https:',//Seems to be required for browserify
 			method: 'HEAD',
 			headers: {
@@ -443,7 +443,7 @@ var pdfenApi = {
 	},
 	
 	download : function(path, target, callback, language){
-		path = 'https://'  + settings.api_host + settings.api_root_path + path;
+		path = 'https://'  + module.exports.settings.api_host + module.exports.settings.api_root_path + path;
 		if (typeof window !== 'undefined') {
 			//Creating new link node.
 			var link = document.createElement('a');
@@ -473,11 +473,11 @@ var pdfenApi = {
 	},
 	
 	stripUrl : function (url){
-		var i = url.indexOf(settings.api_root_path);
+		var i = url.indexOf(module.exports.settings.api_root_path);
 		if(i === -1){
 			return url;
 		} else{
-			i = i + settings.api_root_path.length;
+			i = i + module.exports.settings.api_root_path.length;
 			return url.substr(i);
 		}
 	},
