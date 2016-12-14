@@ -1790,7 +1790,7 @@ module.exports = function (pdfenApi){
 					temp = template_map[temp_data['template_id']];
 					temp.__update(temp_data, secretToken);
 				} else {
-					temp = new PdfenTemplateDescription(pdfenApi, pdfenSession, data, secretToken);
+					temp = new PdfenTemplateDescription(pdfenApi, pdfenSession, temp_data, secretToken);
 				}
 				new_templates.push(temp);
 				new_template_map[temp_data['template_id']] = temp;
