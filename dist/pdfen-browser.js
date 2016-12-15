@@ -1252,8 +1252,11 @@ module.exports = function (pdfenApi){
             if(statusCode >= 200 && statusCode < 300){
                 self.update(callbacks);
             } else {
-                //error
-                callbacks.error(data);
+				if(typeof callbacks !== 'undefined' && 'error' in callbacks){
+					callbacks.error(data)
+				} else {
+					onErrorCallback(data);
+				}
             }
 		};
 		pdfenApi.PUTdata('/sessions/' + id + '/ordering', ordering, ordering_cb, language);
