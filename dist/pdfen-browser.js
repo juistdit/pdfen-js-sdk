@@ -928,6 +928,8 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		if((typeof val) !== "string"){
 			val = val.id;
 		}
+		var old_template_id = template_id;
+		var old_template = template;
 		template_id = val;
 		template = null;
 		disable_pull = true;
@@ -945,6 +947,10 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		var patch_cb = function (data, statusCode) {
 			if(!(statusCode >= 200 && statusCode < 300)){
 				//error
+				//restore old values
+				template = old_template;
+				template_id = old_template_id;
+				disable_pull = false;
 				callbacks.error(data);
 				return;
 			}
@@ -1216,6 +1222,7 @@ module.exports = function (pdfenApi){
 	var language = "en-US";
 	var templates = [];
 	var template_map = {};
+	var license = null;
 	
 	var options = new PdfenOptions(pdfenApi, this);
 	
@@ -1285,7 +1292,7 @@ module.exports = function (pdfenApi){
 		var cb = {};
 		cb.success = function (){
 			success += 1;
-			if(success === 2 && typeof callbacks !== 'undefined' && 'success' in callbacks){
+			if(success === 3 && typeof callbacks !== 'undefined' && 'success' in callbacks){
 				callbacks.success();
 			}
 		};
@@ -1298,6 +1305,19 @@ module.exports = function (pdfenApi){
 		};
 		this.update(cb);
 		options.pull(cb);
+		loadSessionSettings(cb);
+	};
+	
+	var loadSessionSettings = function (callbacks) {
+		var session_cb = function(data, statusCode, error){
+            if(!(statusCode >= 200 && statusCode < 300) || error){
+				callbacks.error(data);
+				return;
+			}
+			license = data['license'];
+			callbacks.success();
+		};
+		pdfenApi.GET('/sessions/' + id, session_cb, language);
 	};
 	
 	
@@ -1846,6 +1866,9 @@ module.exports = function (pdfenApi){
 		"onError" : {
 			"set" : function(val){ onErrorCallback = val;},
 			"get" : function(){ return onErrorCallback;}
+		},
+		"license" : {
+			"get" : function() { return license; }
 		}
     });
 };
@@ -2075,6 +2098,7 @@ module.exports = function (data, pdfen_secretToken){
 	var type = data['type'];
 	var description = data['description'];
 	var optional = data['optional'];
+	var min_license_level = data['min_license_level'];
 	
 	this.__update = function(data, secretToken){
 		if(secretToken !== pdfen_secretToken){
@@ -2085,6 +2109,7 @@ module.exports = function (data, pdfen_secretToken){
 		type = data['type'];
 		description = data['description'];
 		optional = data['optional'];
+		min_license_level = data['min_license_level'];
 	};
 	
 	this.isCorrectValue = function (val){
@@ -2169,6 +2194,11 @@ module.exports = function (data, pdfen_secretToken){
 					return type.slice();
 				}
 				return type;
+			}
+		},
+		"min_license_level" : {
+			"get" : function(){
+				return min_license_level;
 			}
 		}
     });
