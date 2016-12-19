@@ -1200,12 +1200,13 @@ var pdfenExponentialBackoff = require('./pdfenExponentialBackoff.js');
 var pdfenSmartInterval = require('./pdfenSmartInterval.js');
 var pdfen = require('./pdfen.js');
 var interval_settings = {
-	min_polling_interval: 100,
+	min_polling_interval: 800,
 	fast_exponent : 2.2,
 	max_fast_polling_interval : 1000,
 	max_slow_polling_interval : 2000,
 	slow_exponent : 1.1
 };
+var max_long_pull_timeout = 10000;
 
 module.exports = function (pdfenApi){
 	//constructor for pdfenSession
@@ -1333,13 +1334,8 @@ module.exports = function (pdfenApi){
                 callbacks.error(data);
                 return;
             }
-			if('session_id' in data){
-				id = data.session_id;
-			} else { 
-				return;
-			}
 			
-			options.pull(callbacks);
+			this.load(data.session_id, callbacks);
 		};
 		pdfenApi.POST('/sessions', {username: username, password: password}, post_cb, language);
 	};
@@ -1552,7 +1548,7 @@ module.exports = function (pdfenApi){
                         //just continue here... maybe just a simple timeout.
                     }
                 } else {
-					for(var i = 0; i < data.process_progress.length; i++){
+					for(var i = progress_line; i < data.process_progress.length; i++){
 						callbacks.progress(data.process_progress[i]);
 						progress_line++;
 					}
@@ -1569,7 +1565,7 @@ module.exports = function (pdfenApi){
 			};
 			var request_progress = function (){
 				//Poll a new progress update and send the data to request_cb
-				pdfenApi.GET('/sessions/'+id+'/processes/'+process_id + '?start='+progress_line, request_cb, language);
+				pdfenApi.GET('/sessions/'+id+'/processes/'+process_id, request_cb, language);
 			};
 			//This is called after the process is started.
 			generate_cb = function (data, statusCode) {
@@ -1628,8 +1624,9 @@ module.exports = function (pdfenApi){
 	
 	var up_process_done = true;
 	var up_process_id = null;
-	var up_progress_line = 0;
+	var up_progress_counter = 0;
 	var up_updateProcess_blocked = false;
+	var update_process_timeouts = 0;
 	var updateProcess = function(input_data, input_status_code) {
 		if(onProcessCallback === null || up_updateProcess_blocked){
 			return;
@@ -1640,7 +1637,7 @@ module.exports = function (pdfenApi){
 				var int_cb = function (data, statusCode){
 					up_process_done = true;
 					up_updateProcess_blocked = false;
-					up_progress_line = 0;
+					up_progress_counter = 0;
 					if (!(statusCode >= 200 && statusCode < 300)) {
 						onProcessCallback("error", {code : statusCode, message : data.process_result.messages.join("\n")});
 					}
@@ -1651,6 +1648,9 @@ module.exports = function (pdfenApi){
 						return;
 					}
 					if('process_progress' in data){
+						if('previous_line' in data.process_progress){
+							onProcessCallback("update_previous_line", data.process_progress.previous_line);
+						}
 						for(var i = 0; i < data.process_progress.length; i++){
 							onProcessCallback("progress", data.process_progress[i]);
 						}
@@ -1659,12 +1659,14 @@ module.exports = function (pdfenApi){
 						onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 					}
 				};
-				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id + "?start="+up_progress_line,int_cb, language);
+				pdfenApi.GET("/sessions/"+id+"/processes/" + up_process_id +
+								"?update_counter=" + up_progress_counter,int_cb, language);
 			};
+			up_updateProcess_blocked = false;
 			if (!(statusCode >= 200 && statusCode < 300)) {
 				if(data !== null && 'process_result' in data) {
 					up_process_id = null;
-					up_progress_line = 0;
+					up_progress_counter = 0;
 					onErrorCallback(data);
 					return;
 				}
@@ -1678,7 +1680,7 @@ module.exports = function (pdfenApi){
 				//else a normal error we just ignore this for now
 				return;
 			}
-			if(up_process_id !== data['process_id']){
+			if (up_process_id !== data['process_id']) {
 				//handle change
 				if(!up_process_done){
 					fetch_prev_process();
@@ -1687,27 +1689,42 @@ module.exports = function (pdfenApi){
 					up_process_id = data['process_id'];
 					up_process_done = false;
 					onProcessCallback("new", up_process_id);
-					if(up_progress_line !== 0){
-						up_progress_line = 0;
+					if(up_progress_counter !== 0){
+						up_progress_counter = 0;
 						updateProcess();
 						return;
 					}
 				}
 			}
 			if('process_progress' in data){
-				for(var i = 0; i < data.process_progress.length; i++){
-					onProcessCallback("progress", data.process_progress[i]);
-					up_progress_line++;
+				if('previous_line' in data.process_progress){
+					onProcessCallback("update_previous_line", data.process_progress.previous_line);
 				}
+				for(var i = 0; i < data.process_progress.lines.length; i++){
+					onProcessCallback("progress", data.process_progress.lines[i]);
+				}
+				up_progress_counter = data.process_progress.update_counter;
 			}
 			if('process_result' in data){
 				up_process_done = true;
-				up_progress_line = 0;
+				up_progress_counter = 0;
 				onProcessCallback("done", new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
+			} else {
+				if(update_process_timeouts > 0){
+					return;//a timeout is already set.
+				}
+				update_process_timeouts++;
+				setTimeout(function(){
+					update_process_timeouts--;
+					updateProcess();
+				}, interval_settings.min_polling_interval);
 			}
 		};
 		if(typeof input_data === "undefined"){
-			pdfenApi.GET("/sessions/"+id+"/current-process?start="+up_progress_line + '&noredirect', cb, language);
+			up_updateProcess_blocked = true;
+			pdfenApi.GET("/sessions/"+id+"/current-process?noredirect&" +
+								"long_pull_timeout=" + max_long_pull_timeout + 
+								"&update_counter=" + up_progress_counter, cb, language);
 		} else {
 			cb(input_data, input_status_code)
 		}
@@ -1720,6 +1737,7 @@ module.exports = function (pdfenApi){
 			pdfenSession.update({success: function(){pdfenSession.options.pull();} });
 			updateProcess();
 		};
+		setTimeout(handler, 0);
 		updateHandle = pdfenSmartInterval(handler, 5000, 10000, 30);
 	};
 	
