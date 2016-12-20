@@ -1492,7 +1492,7 @@ module.exports = function (pdfenApi){
 	//  completed (optional)
 	//  progress (optional)
 	//  error (optional)
-	this.generatePdf = function(options, callbacks){
+	this.generatePdf = function(options, callbacks) {
 		if(id === null){
 			throw "Please login to generate a pdf.";
 		}
@@ -1517,23 +1517,34 @@ module.exports = function (pdfenApi){
 				return;
 			}
 		}
+		var triggerOnProcessCallback = function(type, data){
+			if(onProcessCallback !== null && typeof onProcessCallback !== "undefined"){
+				onProcessCallback(type, data);
+			}
+		}
 		var generate_cb;
-		if(typeof callbacks !== 'undefined' && 'progress' in callbacks){
-			//In this mode we need to poll the progress so we can update the progress callbacks
-			var process_id;
-			var progress_line = 0;
-			var interval_function = pdfenExponentialBackoff(interval_settings);
+		if (typeof callbacks !== 'undefined' && 'progress' in callbacks) {
+			var update_counter = 0;
+			//we will handle all event handling ourselves
+			updateProcess_blocked_by_gen_PDF = true;
+			
+			if(typeof callbacks.updatePreviousLine === 'undefined') {
+				callbacks.updatePreviousLine = function() {};
+			}
+			
 			if(typeof callbacks.error === 'undefined'){
 				callbacks.error = onErrorCallback;
 			}
 			if(typeof callbacks.progressError === 'undefined'){
 				callbacks.progressError = onErrorCallback;
 			}
-			//This is called after a poll result is given by the API.
-			var request_cb = function(data, statusCode){
-				if(progress_line === 0){
-					updateProcess(data, statusCode);
-				}
+			var generate_cb = null;
+			var fetchUpdates = function (proc_id) {
+				pdfenApi.GET("/sessions/"+id+"/processes/" + proc_id + "?noredirect&" +
+								"long_pull_timeout=" + max_long_pull_timeout + 
+								"&update_counter=" + update_counter, generate_cb, language);
+			};
+			generate_cb = function (data, statusCode) {
                 if(!(statusCode >= 200 && statusCode < 300)){
                     if(data !== null && 'process_result' in data){
 						if(data.process_result.messages.length > 1) {
@@ -1542,61 +1553,43 @@ module.exports = function (pdfenApi){
 						} else {
 							callbacks.error({ message: data.process_result.messages[0] });
 						}
+						updateProcess_blocked_by_gen_PDF = false;
                         return;
                     } else {
                         callbacks.progressError(data);
-                        //just continue here... maybe just a simple timeout.
-                    }
-                } else {
-					for(var i = progress_line; i < data.process_progress.length; i++){
-						callbacks.progress(data.process_progress[i]);
-						progress_line++;
-					}
-				}
-				if('process_result' in data){
-					if('success' in callbacks){
-						callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 					}
 				} else {
-					//Continue polling the request
-					var delay = interval_function(data.process_progress.length !== 0);
-					setTimeout(request_progress, delay);	
+					//an update
+					if ('process_progress' in data) {
+						if ('previous_line' in data.process_progress) {
+							callbacks.updatePreviousLine(data.process_progress.previous_line);
+							triggerOnProcessCallback("update_previous_line", data.process_progress.previous_line);
+						}
+						for (var i = 0; i < data.process_progress.lines.length; i++) {
+							callbacks.progress(data.process_progress.lines[i]);
+							triggerOnProcessCallback("progress", data.process_progress.lines[i]);
+						}
+						update_counter = data.process_progress.update_counter;
+					}
+					
+					if ('process_result' in data) {
+						//enable the updateProcess routines again.
+						updateProcess_blocked_by_gen_PDF = false;
+						var file = new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url)	
+						if ('success' in callbacks) {
+							callbacks.success(file);
+						}
+						triggerOnProcessCallback("done", file);
+					} else {
+						setTimeout(function(){
+							fetchUpdates(data['process_id']);
+						}, interval_settings.min_polling_interval);
+					}
 				}
 			};
-			var request_progress = function (){
-				//Poll a new progress update and send the data to request_cb
-				pdfenApi.GET('/sessions/'+id+'/processes/'+process_id, request_cb, language);
-			};
-			//This is called after the process is started.
-			generate_cb = function (data, statusCode) {
-                if(!(statusCode >= 200 && statusCode < 300)){
-                    callbacks.error(data);
-                    return;
-                }
-				if('process_id' in data){
-					process_id = data.process_id;
-				}
-				//Initiate polling. If the server gives a progress output directly: just process it directly
-				//Otherwise request the progress without any delay.
-				if('process_progress' in data && data.process_progress.length > 0){
-					request_cb(data);	
-				} else {
-					request_progress();
-				}
-			};
-			pdfenApi.POST('/sessions/'+id+'/processes', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
+			pdfenApi.POST('/sessions/'+id+'/processes?update_counter=0', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 		} else {
-			if(typeof callbacks === 'undefined'){
-				callbacks = {};
-			}
-			if(typeof callbacks.error === 'undefined'){
-				callbacks.error = onErrorCallback;
-			}
-			if(typeof callbacks.progressError === 'undefined'){
-				callbacks.progressError = onErrorCallback;
-			}
 			generate_cb = function (data, statusCode) {
-				updateProcess(data, statusCode);
 				if(!(statusCode >= 200 && statusCode < 300)){
                     callbacks.error(data);
                     return;
@@ -1605,11 +1598,21 @@ module.exports = function (pdfenApi){
 					callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
 				}
 			};
-			if(typeof callbacks !== 'undefined' && 'success' in callbacks){
+			
+			if (typeof callbacks !== 'undefined' && 'success' in callbacks) {
 				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {title : "My document", process_synchronous : true}}, generate_cb, language);
 			} else {
 				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 			}
+			//signal the update process routines
+			//as we only get the complete result, we will not actively push data, but we will just start the updateProcess routines manually
+			//if you would remove this, it would start as well, but not as quickly.
+			
+			update_process_timeouts++;
+			setTimeout(function(){
+				update_process_timeouts--;
+				updateProcess();
+			}, interval_settings.min_polling_interval);
 		}
 	};
 	
@@ -1627,8 +1630,10 @@ module.exports = function (pdfenApi){
 	var up_progress_counter = 0;
 	var up_updateProcess_blocked = false;
 	var update_process_timeouts = 0;
+	var updateProcess_blocked_by_gen_PDF = false;
 	var updateProcess = function(input_data, input_status_code) {
-		if(onProcessCallback === null || up_updateProcess_blocked){
+		if(onProcessCallback === null || typeof onProcessCallback === "undefined" ||
+		 up_updateProcess_blocked || updateProcess_blocked_by_gen_PDF){
 			return;
 		}
 		var cb = function (data, statusCode) {
@@ -1735,7 +1740,9 @@ module.exports = function (pdfenApi){
 		var handler = function ()
 		{
 			pdfenSession.update({success: function(){pdfenSession.options.pull();} });
-			updateProcess();
+			if(update_process_timeouts == 0){// no timeouts are running
+				updateProcess();	
+			}
 		};
 		setTimeout(handler, 0);
 		updateHandle = pdfenSmartInterval(handler, 5000, 10000, 30);
