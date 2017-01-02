@@ -584,7 +584,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             throw "This file is already created.";
         }
         var params = {};
-        if(typeof content === "string" && content.indexOf('http') === 0){
+        if(typeof content === "string"){
             params.url = content;
         }
         if(!pdfenSession._canUploadFileType(extension)){
@@ -1523,97 +1523,84 @@ module.exports = function (pdfenApi){
 			}
 		}
 		var generate_cb;
-		if (typeof callbacks !== 'undefined' && 'progress' in callbacks) {
-			var update_counter = 0;
-			//we will handle all event handling ourselves
-			updateProcess_blocked_by_gen_PDF = true;
-			
-			if(typeof callbacks.updatePreviousLine === 'undefined') {
-				callbacks.updatePreviousLine = function() {};
-			}
-			
-			if(typeof callbacks.error === 'undefined'){
-				callbacks.error = onErrorCallback;
-			}
-			if(typeof callbacks.progressError === 'undefined'){
-				callbacks.progressError = onErrorCallback;
-			}
-			var generate_cb = null;
-			var fetchUpdates = function (proc_id) {
-				pdfenApi.GET("/sessions/"+id+"/processes/" + proc_id + "?noredirect&" +
-								"long_pull_timeout=" + max_long_pull_timeout + 
-								"&update_counter=" + update_counter, generate_cb, language);
-			};
-			generate_cb = function (data, statusCode) {
-                if(!(statusCode >= 200 && statusCode < 300)){
-                    if(data !== null && 'process_result' in data){
-						if(data.process_result.messages.length > 1) {
-							var msg = "<ul><li>" + data.process_result.messages.join("</li><li>") + "</li></ul>";
-							callbacks.error({ message: msg });
-						} else {
-							callbacks.error({ message: data.process_result.messages[0] });
-						}
-						updateProcess_blocked_by_gen_PDF = false;
-                        return;
-                    } else {
-                        callbacks.progressError(data);
-					}
-				} else {
-					//an update
-					if ('process_progress' in data) {
-						if ('previous_line' in data.process_progress) {
-							callbacks.updatePreviousLine(data.process_progress.previous_line);
-							triggerOnProcessCallback("update_previous_line", data.process_progress.previous_line);
-						}
-						for (var i = 0; i < data.process_progress.lines.length; i++) {
-							callbacks.progress(data.process_progress.lines[i]);
-							triggerOnProcessCallback("progress", data.process_progress.lines[i]);
-						}
-						update_counter = data.process_progress.update_counter;
-					}
-					
-					if ('process_result' in data) {
-						//enable the updateProcess routines again.
-						updateProcess_blocked_by_gen_PDF = false;
-						var file = new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url)	
-						if ('success' in callbacks) {
-							callbacks.success(file);
-						}
-						triggerOnProcessCallback("done", file);
-					} else {
-						setTimeout(function(){
-							fetchUpdates(data['process_id']);
-						}, interval_settings.min_polling_interval);
-					}
-				}
-			};
-			pdfenApi.POST('/sessions/'+id+'/processes?update_counter=0', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
-		} else {
-			generate_cb = function (data, statusCode) {
-				if(!(statusCode >= 200 && statusCode < 300)){
-                    callbacks.error(data);
-                    return;
-                }
-				if (typeof callbacks !== 'undefined' && 'success' in callbacks && 'process_result' in data && 'url' in data.process_result){
-					callbacks.success(new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url));
-				}
-			};
-			
-			if (typeof callbacks !== 'undefined' && 'success' in callbacks) {
-				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {title : "My document", process_synchronous : true}}, generate_cb, language);
-			} else {
-				pdfenApi.POST('/sessions/'+id+'/processes', {process_settings : {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
-			}
-			//signal the update process routines
-			//as we only get the complete result, we will not actively push data, but we will just start the updateProcess routines manually
-			//if you would remove this, it would start as well, but not as quickly.
-			
-			update_process_timeouts++;
-			setTimeout(function(){
-				update_process_timeouts--;
-				updateProcess();
-			}, interval_settings.min_polling_interval);
+		if (typeof callbacks == 'undefined'){
+			callbacks = {};
 		}
+		if(typeof callbacks.success === 'undefined') {
+			callbacks.success = function () {};
+		}
+		if(typeof callbacks.progress === 'undefined'){
+			callbacks.progress = function () {};
+		}
+		var update_counter = 0;
+		//we will handle all event handling ourselves
+		updateProcess_blocked_by_gen_PDF = true;
+		
+		if(typeof callbacks.updatePreviousLine === 'undefined') {
+			callbacks.updatePreviousLine = function() {};
+		}
+		
+		if(typeof callbacks.error === 'undefined'){
+			callbacks.error = onErrorCallback;
+		}
+		if(typeof callbacks.progressError === 'undefined'){
+			callbacks.progressError = onErrorCallback;
+		}
+		var generate_cb = null;
+		var fetchUpdates = function (proc_id) {
+			pdfenApi.GET("/sessions/"+id+"/processes/" + proc_id + "?noredirect&" +
+							"long_pull_timeout=" + max_long_pull_timeout + 
+							"&update_counter=" + update_counter, generate_cb, language);
+		};
+		var process_created = false;
+		generate_cb = function (data, statusCode) {
+			if(!(statusCode >= 200 && statusCode < 300) ||
+				(data !== null && 'process_result' in data && data.process_result.status === "ERROR")){
+				if(data !== null && 'process_result' in data){
+					if(data.process_result.messages.length > 1) {
+						var msg = "<ul><li>" + data.process_result.messages.join("</li><li>") + "</li></ul>";
+						callbacks.error({ message: msg });
+					} else {
+						callbacks.error({ message: data.process_result.messages[0] });
+					}
+					updateProcess_blocked_by_gen_PDF = false;
+					return;
+				} else if(!process_created) {
+					callbacks.error(data);
+				} else {
+					callbacks.progressError(data);
+				}
+			} else {
+				process_created = true;
+				//an update
+				if ('process_progress' in data) {
+					if ('previous_line' in data.process_progress) {
+						callbacks.updatePreviousLine(data.process_progress.previous_line);
+						triggerOnProcessCallback("update_previous_line", data.process_progress.previous_line);
+					}
+					for (var i = 0; i < data.process_progress.lines.length; i++) {
+						callbacks.progress(data.process_progress.lines[i]);
+						triggerOnProcessCallback("progress", data.process_progress.lines[i]);
+					}
+					update_counter = data.process_progress.update_counter;
+				}
+				
+				if ('process_result' in data) {
+					//enable the updateProcess routines again.
+					updateProcess_blocked_by_gen_PDF = false;
+					var file = new PdfenGeneratedFile(pdfenApi, pdfenSession, data.process_result.url)	
+					if ('success' in callbacks) {
+						callbacks.success(file);
+					}
+					triggerOnProcessCallback("done", file);
+				} else {
+					setTimeout(function(){
+						fetchUpdates(data['process_id']);
+					}, interval_settings.min_polling_interval);
+				}
+			}
+		};
+		pdfenApi.POST('/sessions/'+id+'/processes?update_counter=0', {process_settings: {process_synchronous : false, immediate : true, title : "My document"}}, generate_cb, language);
 	};
 	
 	var updateHandle;
