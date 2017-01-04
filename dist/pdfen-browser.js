@@ -1983,7 +1983,22 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 		}
 	};
 	
-	this.saveDefaults = function (ordering, fields, callbacks) {
+	this.saveDefaults = function (ordering, fields_in, callbacks) {
+		var makeRawOrdering = function (ordering){
+			if (Array.isArray(ordering)) {
+				var new_ordering = [];
+				for(var i = 0; i < ordering.length; i++){
+					new_ordering.push(makeRawOrdering(ordering[i]));
+				}	
+				return new_ordering;
+			} else if (Array.isArray(ordering.children)) {
+				var new_ordering = Object.assign({}, ordering);
+				new_ordering.children = makeRawOrdering(ordering.children);
+				return new_ordering;
+			} else {
+				return ordering.id;
+			}
+		};
 		if(typeof callbacks == "undefined"){
 			callbacks = {error: pdfenSession.onError, success : function(){}};
 		}
@@ -1995,10 +2010,21 @@ module.exports = function (pdfenApi, pdfenSession, data, pdfen_secretToken){
 		}
 		var params = {};
 		if(ordering !== null){
-			params['default_ordering'] = ordering;
+			params['default_ordering'] = makeRawOrdering(ordering);
 		}
-		if(fields !== null){
-			params['fields'] = fields;
+		if(fields_in !== null){
+			if(typeof fields_in.getOption !== "undefined") {
+				//someone passed an option object.	
+				params['fields'] = {};
+				var currentTemplate = fields_in.currentTemplate;
+				for(var i = 0; i < fields.length; i++){
+					if(currentTemplate.hasField(fields[i].id)){
+						params['fields'][fields[i].id] = fields_in.getOption(fields[i].id);
+					}
+				}
+			} else {
+				params['fields'] = fields_in;
+			}
 		}
 		//saves the defaults
 		//has no impact on the other values: fields can't be added. only the default ordering can change.
