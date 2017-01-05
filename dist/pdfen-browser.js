@@ -994,7 +994,6 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		var old_template_id = template_id;
 		var old_template = template;
 		template_id = val;
-		console.log(val + " | "  + template_id + " disable_pull on");
 		template = null;
 		disable_pull = true;
 		
@@ -1031,7 +1030,6 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 
 			options['template_id'] = template_id;
 			
-			console.log(val + " | "  + template_id + "disable_pull off");
 			disable_pull = false;
 			//We force fetch template our self, because this allows 2 concurrent request instead of 2 sequential requests.
 			//only set the template when everything is loaded
@@ -2309,13 +2307,6 @@ module.exports = function (data, pdfen_secretToken){
 		} else if(type === 'time') {
 			match = /^([0-2]\d):([0-5]\d):([0-5]\d)$/.exec(val);
 			if (match === null) {
-				return false;
-			}
-			year = parseInt(match[1]);
-			month = parseInt(match[2]);
-			day = parseInt(match[3]);
-			hour = parseInt(match[4]);
-			if (month < 1 || month > 12 || day > (new Date(year, month + 1, 0)).getDate() || hour > 23) {
 				return false;
 			}
 		} else if(type === 'date'){
