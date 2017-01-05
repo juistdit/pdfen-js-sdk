@@ -1661,9 +1661,9 @@ module.exports = function (pdfenApi){
 						callbacks.updatePreviousLine(data.process_progress.previous_line);
 						triggerOnProcessCallback("update_previous_line", data.process_progress.previous_line);
 					}
-					for (var i = 0; i < data.process_progress.lines.length; i++) {
-						callbacks.progress(data.process_progress.lines[i]);
-						triggerOnProcessCallback("progress", data.process_progress.lines[i]);
+					if(data.process_progress.lines.length > 0){
+						callbacks.progress(data.process_progress.lines);
+						triggerOnProcessCallback("progress", data.process_progress.lines);
 					}
 					update_counter = data.process_progress.update_counter;
 				}
@@ -1726,8 +1726,8 @@ module.exports = function (pdfenApi){
 						if('previous_line' in data.process_progress){
 							onProcessCallback("update_previous_line", data.process_progress.previous_line);
 						}
-						for(var i = 0; i < data.process_progress.length; i++){
-							onProcessCallback("progress", data.process_progress[i]);
+						if(data.process_progress.lines.length > 0){
+							onProcessCallback("progress", data.process_progress.lines);
 						}
 					}
 					if('process_result' in data){
@@ -1775,8 +1775,8 @@ module.exports = function (pdfenApi){
 				if('previous_line' in data.process_progress){
 					onProcessCallback("update_previous_line", data.process_progress.previous_line);
 				}
-				for(var i = 0; i < data.process_progress.lines.length; i++){
-					onProcessCallback("progress", data.process_progress.lines[i]);
+				if(data.process_progress.lines.length > 0){
+					onProcessCallback("progress", data.process_progress.lines);
 				}
 				up_progress_counter = data.process_progress.update_counter;
 			}
