@@ -924,13 +924,77 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 		return null;
 	};
 	
-	this.loadTemplate = function(val, callbacks){
+	//Clicking loadTemplate multiple times in short succession causes a lot of race conditions
+	//The way to solve this is too allow only loading one template at a times
+	//Once another is clicked, that one must wait until the previous is loaded
+	//If a template is already waiting, than just overwrite the waiting template;
+	var waiting_load_template = null;
+	var template_loading = false;
+	this.loadTemplate = function (val, callbacks){
+		if(typeof callbacks == "undefined"){
+			callbacks = {error: pdfenSession.onError, success : function(){}};
+		}
+		if(typeof callbacks.error == "undefined"){
+			callbacks.error = pdfenSession.onError;
+		}
+		if(typeof callbacks.success == "undefined"){
+			callbacks.success = function() {};
+		}
+
+		if(template_loading){
+			if(waiting_load_template !== null) {
+				//overwrite queue loadTemplate
+				//notify them that it is overwritten:
+				var callbacks2 = waiting_load_template[1];
+				if(typeof callbacks2 )
+				var message = "";
+				if(pdfenSession.language === 'nl-NL'){
+					message = "Het inladen van de gespecificeerde template was in conflict met het inladen van een andere template.";
+				} else {
+					message = "Loading the specified template was in conflict with another loadTemplate request.";
+				}
+				callbacks.error({"code" : 409, //HTTP conflict status code
+							"message" : message});
+			}
+			waiting_load_template = [val, callbacks];
+			return;
+		}
+
+		template_loading = true;
+		var cb = {error: callbacks.error};
+		cb.success = function () {
+			template_loading = false;
+			try {
+				callbacks.success();
+			} catch (err) {
+				if(waiting_load_template !== null){
+					var val2 = waiting_load_template[0];
+					var callbacks2 = waiting_load_template[1];
+					waiting_load_template = null;
+					template_loading = true;
+					loadTemplateDirect(val2, callbacks2);
+				}
+				throw err;
+			}
+			if(waiting_load_template !== null){
+					var val2 = waiting_load_template[0];
+					var callbacks2 = waiting_load_template[1];
+					waiting_load_template = null;
+					template_loading = true;
+					loadTemplateDirect(val2, callbacks2);
+			}
+		}
+		loadTemplateDirect(val, cb);
+	}
+
+	var loadTemplateDirect = function(val, callbacks){
 		if((typeof val) !== "string"){
 			val = val.id;
 		}
 		var old_template_id = template_id;
 		var old_template = template;
 		template_id = val;
+		console.log(val + " | "  + template_id + " disable_pull on");
 		template = null;
 		disable_pull = true;
 		
@@ -964,20 +1028,25 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			} else if(template_desc === null){
 				callbacks.error("The template did not exist!");
 			}
-			
-			disable_pull = false;
+
 			options['template_id'] = template_id;
+			
+			console.log(val + " | "  + template_id + "disable_pull off");
+			disable_pull = false;
 			//We force fetch template our self, because this allows 2 concurrent request instead of 2 sequential requests.
+			//only set the template when everything is loaded
+			var template_fetched = null;
 			template_desc.fetchTemplate(function(in_template, error){
 				if(in_template === null){
 					callbacks.error(error);
 					return;
 				}
 				
-				template = in_template;
+				template_fetched = in_template;
 				
 				success_cnt += 1;
 				if(success_cnt === 3){
+					template = template_fetched;
 					triggerOnChange();
 					callbacks.success();
 				}
@@ -986,11 +1055,14 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			cb.success = function(){
 				success_cnt += 1;
 				if(success_cnt === 3){
+					template = template_fetched;
 					triggerOnChange();
 					callbacks.success();
 				}
 			};
-			cb.error = callbacks.error;
+			cb.error = function () {
+				callbacks.error();
+			}
 			pull(cb, true, true);
 			pdfenSession.update(cb);
 		};
@@ -1229,6 +1301,12 @@ module.exports = function (pdfenApi){
 	var options = new PdfenOptions(pdfenApi, this);
 	
 	var triggerOnOrderingChange = function (){
+		//check if the current options is correctly synced
+		if(options.currentTemplate === null){
+			//retry later
+			setTimeout(triggerOnOrderingChange, 10);
+			return;
+		}
         if(typeof onOrderingChanged === "function"){
             onOrderingChanged(local_ordering);
         } else {
@@ -1348,6 +1426,12 @@ module.exports = function (pdfenApi){
 		if(typeof callbacks.error == "undefined"){
 			callbacks.error = onErrorCallback;
 		}
+
+		if(typeof skipUpdateTemplates === "undefined") {
+			skipUpdateTemplates = false;
+		}
+
+
 		var ordering_done = false;
 		var files_done = false;
 		var raw_ordering = null;
