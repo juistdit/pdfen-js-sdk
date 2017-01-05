@@ -977,7 +977,7 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 				template = in_template;
 				
 				success_cnt += 1;
-				if(success_cnt === 2){
+				if(success_cnt === 3){
 					triggerOnChange();
 					callbacks.success();
 				}
@@ -985,13 +985,14 @@ module.exports = function (pdfenApi, pdfenSession, template_key){
 			var cb = {};
 			cb.success = function(){
 				success_cnt += 1;
-				if(success_cnt === 2){
+				if(success_cnt === 3){
 					triggerOnChange();
 					callbacks.success();
 				}
 			};
 			cb.error = callbacks.error;
 			pull(cb, true, true);
+			pdfenSession.update(cb);
 		};
 		var params = { template_id : template_id};
 		pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/options', params, patch_cb, pdfenSession.language);
