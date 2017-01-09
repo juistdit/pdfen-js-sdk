@@ -551,7 +551,7 @@ module.exports = function (settings){
 
 			
 },{}],4:[function(require,module,exports){
-module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings, id){
+module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_files, warnings, id){
 	files.push(this);
     if (typeof id === 'undefined') { 
 		id = null; 
@@ -563,6 +563,23 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
     var properties_changed = false;
     var extension = null;
     var upload_handle = null;
+    var deleted = false;
+    //variable used by pdfenSession
+    var creation_time = 0;//the time the id was set - and thus the API should know about this.
+    
+    this.__pushDeletion = function (token) {
+        if(token !== secretToken){
+            throw "Not allowed";
+        }
+        id = null;
+    }
+    
+    this.__creationTime = function(token) {
+        if(token !== secretToken) { 
+            throw "Not allowed";
+        }
+        return creation_time;
+    }
     
     this.__pushServerUpdate = function(token, title_in, extension_in, warnings_in){
         if(token !== secretToken){
@@ -583,6 +600,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
         if(id !== null){
             throw "This file is already created.";
         }
+        deleted = false;
         var params = {};
         if(typeof content === "string"){
             params.url = content;
@@ -661,6 +679,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
                 return;
             }
             if('file_id' in data){
+                creation_time = new Date().valueOf();
                 id = data.file_id;
                 isUpdating--;
                 if('success' in callbacks &&!('url' in params)){
@@ -781,6 +800,10 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
 	};
     
     this.delete = function(callbacks){
+        deleted = true;
+        if(id !== null) {
+            deleted_files.push(id);
+        }
         if(upload_handle !== null){
             pdfenApi.stopRequest(upload_handle);
             upload_handle = null;
@@ -816,7 +839,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
 	//Lets define the special properties (readonly, etc..)
 	Object.defineProperties(this, {
         "id": {
-             "get": function() { return id;},
+             "get": function() { return deleted ? null : id;},
              "set": function() {}
         },
         "title" : {
@@ -849,6 +872,12 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files,  warnings
             "get" : function (){
                 return isUpdating > 0;
             }
+        },
+        "exists" : {
+            "get" : function() { return !deleted && id !== null; }
+        },
+        "isDeleted" : {
+            "get" : function() { return deleted;}
         },
         "isUploading" : {
             "get" : function (){
@@ -1213,6 +1242,7 @@ module.exports = function (pdfenApi){
 	var pdfenSession = this;
 	var id = null;
 	var files = [];
+	var deleted_files = [];
 	var self = this;
 	var remote_ordering = [];
 	var local_ordering = [];
@@ -1245,7 +1275,8 @@ module.exports = function (pdfenApi){
 			}	
 			return new_ordering;
 		} else if (Array.isArray(ordering.children)) {
-			var new_ordering = Object.assign({}, ordering);
+			var new_ordering = {};
+			new_ordering.title = ordering.title;
 			new_ordering.children = makeRawOrdering(ordering.children);
 			return new_ordering;
 		} else {
@@ -1280,7 +1311,7 @@ module.exports = function (pdfenApi){
 	//A fix for browsers that do not support bind
 	var emptyObject = {};
 	var secretToken = Math.random();
-	this.File = PdfenFile.bind(emptyObject, pdfenApi, this, secretToken, files, []);
+	this.File = PdfenFile.bind(emptyObject, pdfenApi, this, secretToken, files, deleted_files, []);
 	
 	
 	//log in by loading an existing session
@@ -1435,10 +1466,21 @@ module.exports = function (pdfenApi){
                 //We do not show any partial files that we did not create, they will only show up when the files are
                 //completely uploaded.
                 //This hides the two step upload of the API from the user
-               if(!file_exists && !raw_files[i].partial){
-					var f = new PdfenFile(pdfenApi, self, secretToken, files, raw_files[i].warnings, raw_files[i].file_id);
+               if(!file_exists && !raw_files[i].partial && deleted_files.indexOf(raw_files[i].file_id) == -1){
+					var f = new PdfenFile(pdfenApi, self, secretToken, files, deleted_files, raw_files[i].warnings, raw_files[i].file_id);
 					f.title = raw_files[i].title;
 					f.extension = raw_files[i].extension;
+				}
+			}
+			for(var j = 0; j < files.length; j++) {
+				var found = false;
+				for (var i = 0; i < raw_files.length; i++){
+					found = found || files[j].id === raw_files[i].file_id;
+				}
+				//bug the files callback does not know about files that were created while this callback was processed...
+				//so we should detect these problems.
+				if(!found && files[j].id !== null && files[j].__creationTime(secretToken) < request_time){
+					files[j].__pushDeletion(secretToken);
 				}
 			}
 			var new_ordering = transformOrdering(raw_ordering.slice());
@@ -1475,7 +1517,7 @@ module.exports = function (pdfenApi){
 				update_cb();
 			}
 		};
-		
+		var request_time = new Date().valueOf();
 		pdfenApi.GET('/sessions/' + id + '/ordering', ordering_cb, language);
 		pdfenApi.GET('/sessions/' + id + '/files', files_cb, language);
 		var cb  = {};
@@ -1851,7 +1893,7 @@ module.exports = function (pdfenApi){
 			"get" : function () { return files.slice(); }
 		},
 		"validFiles" : {
-			"get" : function () { return files.filter(function(file) { return file.id !== null;});}
+			"get" : function () { return files.filter(function(file) { return file.exists;});}
 		},
 		"options" : {
 			"get" : function () { return options;}
