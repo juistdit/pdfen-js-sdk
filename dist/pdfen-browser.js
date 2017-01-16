@@ -1560,7 +1560,7 @@ module.exports = function (pdfenApi){
 						});
 						if(files[j].title !== raw_files[i].title ||
 							files[j].extension !== raw_files[i].extension || !warnings_is_same){
-							files[j].__pushServerUpdate(secretToken, raw_files[i].title, raw_files[i].extension, raw_files[i].warnings);
+							files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings);
 						}
 					}
 				}
@@ -1569,8 +1569,7 @@ module.exports = function (pdfenApi){
                 //This hides the two step upload of the API from the user
                if(!file_exists && !raw_files[i].partial && deleted_files.indexOf(raw_files[i].file_id) == -1){
 					var f = new PdfenFile(pdfenApi, self, secretToken, files, deleted_files, raw_files[i].warnings, raw_files[i].file_id);
-					f.title = raw_files[i].title;
-					f.extension = raw_files[i].extension;
+					files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings);
 				}
 			}
 			for(var j = 0; j < files.length; j++) {
