@@ -617,6 +617,7 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
     var extension = null;
     var upload_handle = null;
     var deleted = false;
+    var is_url = false;
     //variable used by pdfenSession
     var creation_time = 0;//the time the id was set - and thus the API should know about this.
     
@@ -634,19 +635,20 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
         return creation_time;
     }
     
-    this.__pushServerUpdate = function(token, title_in, extension_in, warnings_in){
+    this.__pushServerUpdate = function(token, title_in, extension_in, warnings_in, is_url_in){
         if(token !== secretToken){
             throw "Not allowed";
         }
         title = title_in;
         extension = extension_in;
         warnings = warnings_in;
+        is_url = is_url_in;
         
         triggerOnChange();
     };
     var isUpdating = 0;
     var uploadProgress = null;   
-    this.create = function(callbacks){
+    this.create = function(callbacks) {
         if(title === null || content === null || extension === null){
             throw "Not all required properties are set.";
         }
@@ -747,10 +749,13 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
 	};
     
     this.update = function (callbacks){
-        if(title === null || (content === null && content_changed) || extension === null){
+        if(typeof callbacks === "undefined") {
+            callbacks = {};
+        }
+        if(title === null || (content === null && content_changed) || extension === null) {
             throw "Not all required properties are set.";
         }
-        if(id === null){
+        if(id === null) {
             throw "This file is not yet created.";
         }
         var params = {};
@@ -828,22 +833,21 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
         
         
         var patch_cb = function (data, statusCode) {
-            if(!(statusCode >= 200 && statusCode < 300)){
+            if(!(statusCode >= 200 && statusCode < 300)) {
                 //error
                 isUpdating--;
                 callbacks.error(data);
                 return;
             }
-            if('file_id' in data){
-                id = data.file_id;
-                isUpdating--;
-                if('success' in callbacks &&!('url' in params) && content_changed){
-                    uploadFile();
-                } else if(typeof callbacks !== 'undefined' && 'success' in callbacks){
-                    updateChangedParams();
-                    callbacks.success();
-                }
+            
+            isUpdating--;
+            if('success' in callbacks &&!('url' in params) && content_changed) {
+                uploadFile();
+            } else if(typeof callbacks !== 'undefined' && 'success' in callbacks) {
+                updateChangedParams();
+                callbacks.success();
             }
+
         };
         if(properties_changed || (content_changed && typeof content === "string")){
             pdfenApi.PATCH('/sessions/' + pdfenSession.id + '/files/' + id, params, patch_cb, pdfenSession.language);
@@ -904,7 +908,10 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
         },
         "content" : {
             "get": function () { throw "Not supported."; },
-            "set": function(val) {content = val; content_changed = true;}
+            "set": function(val) {content = val; 
+                content_changed = true;
+                is_url = (typeof content === "string");
+            }
         },
         "extension" : {
             "get": function () { return extension; },
@@ -940,6 +947,11 @@ module.exports = function (pdfenApi, pdfenSession, secretToken, files, deleted_f
         "uploadProgress" : {
             "get" : function () {
                 return JSON.parse(JSON.stringify(uploadProgress));
+            }
+        },
+        "isURL" : {
+            "get" : function () {
+                return is_url;
             }
         }
     });
@@ -1716,7 +1728,7 @@ module.exports = function (pdfenApi){
 						});
 						if(files[j].title !== raw_files[i].title ||
 							files[j].extension !== raw_files[i].extension || !warnings_is_same){
-							files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings);
+							files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings, (typeof raw_files[i].url !== "undefined"));
 						}
 					}
 				}
@@ -1725,7 +1737,7 @@ module.exports = function (pdfenApi){
                 //This hides the two step upload of the API from the user
                if(!file_exists && !raw_files[i].partial && deleted_files.indexOf(raw_files[i].file_id) == -1){
 					var f = new PdfenFile(pdfenApi, self, secretToken, files, deleted_files, raw_files[i].warnings, raw_files[i].file_id);
-					files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings);
+					files[j].__pushServerUpdate(secretToken, raw_files[i].file_settings.title, raw_files[i].file_settings.extension, raw_files[i].warnings, (typeof raw_files[i].url !== "undefined"));
 				}
 			}
 			for(var j = 0; j < files.length; j++) {
