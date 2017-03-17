@@ -1,0 +1,32 @@
+{
+  "name": "pdfen-js-sdk",
+  "description": "Makes it possible to communicate with the PDFen api.",
+  "main": "dist/pdfen-browser.js",
+  "authors": [
+    "JuistdIT"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "pdfen",
+    "pdf",
+    "convert",
+    "api",
+    "sdk",
+    "docx",
+    "doc",
+    "html",
+    "excel",
+    "office",
+    "xlsx",
+    "word"
+  ],
+  "homepage": "www.pdfen.com",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "lib"
+  ]
+}
