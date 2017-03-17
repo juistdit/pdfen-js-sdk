@@ -22,11 +22,8 @@
   ],
   "homepage": "www.pdfen.com",
   "ignore": [
-    "**/.*",
-    "node_modules",
-    "bower_components",
-    "test",
-    "tests",
-    "lib"
+    "*",
+    "!dist/",
+    "!dist/*"
   ]
 }
